@@ -53,13 +53,30 @@ for lang, df in phonems_sheets.items():
                 pair = (ipa, letter)
                 pair_counter[pair] += weights[lang]
 
+# TODO: i think we should also use "confusion matrix" to avoid sounds that are often mistaken for each other in some languages
+
 # Sort pairs by frequency
 sorted_pairs = sorted(pair_counter.items(), key=lambda x: x[1], reverse=True)
 # Create a DataFrame with separate columns for IPA and letter
 sorted_df = pd.DataFrame(
-    [(ipa, letter, freq) for (ipa, letter), freq in sorted_pairs],
-    columns=["IPA", "Letter", "Frequency"],
+    [(ipa, letter, weight) for (ipa, letter), weight in sorted_pairs],
+    columns=["IPA", "Letter", "Weight"],
 )
+
+# BIJECTION assumption: as soon as a letter or a IPA character is used, should no appear a in the df
+used_letters = set()
+used_ipas = set()
+for _, row in sorted_df.iterrows():
+    if row["Letter"] not in used_letters and row["IPA"] not in used_ipas:
+        used_letters.add(row["Letter"])
+        used_ipas.add(row["IPA"])
+    else:
+        # If either the letter or the IPA is already used, we skip this pair
+        sorted_df.drop(index=row.name, inplace=True)
+
+# TODO: find a better criteria to choose how much characters we want in interla
+sorted_df = sorted_df[sorted_df["Weight"] > 0.2]
+
 # Save the sorted DataFrame to `alphabet.csv`
 os.makedirs("output", exist_ok=True)
 sorted_df.to_csv("output/alphabet.csv", index=False)
