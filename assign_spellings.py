@@ -15,6 +15,7 @@ import networkx as nx
 import pandas as pd
 from rapidfuzz import fuzz
 from tqdm import tqdm
+from tqdm.contrib.concurrent import thread_map
 
 from utils import get_lang_weights
 
@@ -37,16 +38,15 @@ int_orth_tokens = set(interla_df["word"].tolist())
 print(len(int_orth_tokens), "interla tokens with et words")
 
 # 3. Collect all "et" words and their associated words from all other languages
-# TODO: 1mn long
+# TODO: 30s long
 int_anon_tokens_coocurrences = dict()  # 156: {"fi": [159, 8], "sv": [2, 8]}
 all_y2word = dict()  # To collect all y2word mappings
 
 for fpath in tqdm(et_pkls):
-    lang1 = os.path.basename(fpath)[:2]  # e.g. "et" from "et-fi.pkl"
     lang2 = os.path.basename(fpath)[-6:-4]  # e.g. "fi" from "et-fi.pkl"
 
     with open(fpath, "rb") as f:
-        word2x, y2word, x2ys = pickle.load(f)
+        _, y2word, x2ys = pickle.load(f)
         # word2x is a dict: word -> id in lang1
         # y2word is a dict: id -> word in lang2
         # x2ys is a dict: id in lang1 -> list of ids in lang2
@@ -72,10 +72,9 @@ def normalized_similarity(a, b):
     return fuzz.ratio(a, b) / 100
 
 
-for interla_token in tqdm(A):
-    for et_word, assoc_words in list(int_anon_tokens_coocurrences.items()):
-        if not assoc_words:
-            continue
+# for int_orth_token in tqdm(A):
+def process_int_orth_token(int_orth_token):
+    for int_anon_token, assoc_words in int_anon_tokens_coocurrences.items():
         distances = dict()
         for lang, ids in assoc_words.items():
             dists = []
@@ -83,7 +82,7 @@ for interla_token in tqdm(A):
             for y_id in ids:
                 w = y2word.get(y_id)
                 if w is not None:
-                    distance = 1 - normalized_similarity(interla_token, w)
+                    distance = 1 - normalized_similarity(int_orth_token, w)
                     dists.append(distance)
             if dists:
                 avg_dist = sum(dists) / len(dists)
@@ -96,7 +95,10 @@ for interla_token in tqdm(A):
                 sum(distances[lang] * LANG_WEIGHTS[lang] for lang in distances)
                 / total_weight
             )
-            G.add_edge(interla_token, et_word, weight=avg_dist)
+            G.add_edge(int_orth_token, int_anon_token, weight=avg_dist)
+
+
+thread_map(process_int_orth_token, A, max_workers=32)
 
 # Now G is the bipartite graph as described
 nx.write_gpickle(G, "output/interla_et_bipartite_graph.gpickle")
@@ -111,10 +113,10 @@ with open("output/interla_et_matching.pkl", "wb") as f:
     pickle.dump(matching, f)
 
 # Then display the words from A with all their associated "w = y2word.get(y_id)"
-for interla_token in A:
-    et_word = matching[interla_token]
-    assoc_words = int_anon_tokens_coocurrences.get(et_word, {})
-    print(f"Interla: {interla_token} <-> et: {et_word}")
+for int_orth_token in A:
+    int_anon_token = matching[int_orth_token]
+    assoc_words = int_anon_tokens_coocurrences.get(int_anon_token, {})
+    print(f"Interla: {int_orth_token} <-> et: {int_anon_token}")
     for lang, ids in assoc_words.items():
         y2word = all_y2word.get(lang, {})
         words = [y2word.get(y_id, "") for y_id in ids]
