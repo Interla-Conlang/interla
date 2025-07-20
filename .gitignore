@@ -2,3 +2,4 @@ output
 data/translations/downloads
 *.ods#
 .venv
+__pycache__

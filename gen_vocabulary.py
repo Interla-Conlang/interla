@@ -1,6 +1,7 @@
 import itertools
 
 import pandas as pd
+from tqdm import tqdm
 
 # Load the alphabet CSV
 df = pd.read_csv("output/alphabet.csv")
@@ -13,7 +14,7 @@ letters_with_underscore = [
 
 # Generate all combinations of 1, 2, or 3 letters, first letter without underscore, other letters with underscore
 combinations = set()
-for r in range(1, 4):
+for r in tqdm(range(1, 6)):
     if r == 1:
         # Only one letter, can be from letters or letters_with_underscore
         combinations.update(letters)
@@ -31,25 +32,30 @@ for r in range(1, 4):
 vowels = set("aeiou")
 consonants = set(letters) - vowels  # All letters that are not vowels
 
-
 def is_pronounceable(combo):
     # Split the combo at underscores
     parts = combo.split("_")
     # Remove empty strings from split (in case combo starts with "_")
     parts = [p for p in parts if p]
-    # Check for more than 2 consecutive vowels or consonants in the splits
     vowel_count = 0
     consonant_count = 0
+    prev_vowel = None
     for p in parts:
         if p in vowels:
+            # Forbid two consecutive same vowels
+            if prev_vowel == p:
+                return False
             vowel_count += 1
             consonant_count = 0
+            prev_vowel = p
         elif p in consonants:
             consonant_count += 1
             vowel_count = 0
+            prev_vowel = None
         else:
             vowel_count = 0
             consonant_count = 0
+            prev_vowel = None
         if vowel_count > 2 or consonant_count > 1:
             return False
     return True
@@ -61,8 +67,8 @@ combinations = [combo for combo in combinations if is_pronounceable(combo)]
 # TODO: how to avoid confusing for example "a bao" and "abao" => Huffman tree? or stress on the first syllable will handle this confusion?
 
 # Example: print or save the combinations
-for combo in combinations:
-    print(combo)
+# for combo in combinations:
+#     print(combo)
 print("Total combinations:", len(combinations))
 
 # Save the pronounceable combinations to a CSV file

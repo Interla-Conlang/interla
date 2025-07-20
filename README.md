@@ -26,6 +26,15 @@
 pip install -r requirements.txt
 ```
 
+### Choosing edit distance
+**Criterias**
+- Very fast to compute (O(N²) operations)
+- Between 0 and 1, to be able to use it as a cost function
+
+Libs:
+- https://pypi.org/project/RapidFuzz/: SEEMS VERY FAST
+- https://pypi.org/project/python-Levenshtein/
+
 ## Tests
 ### 1) Choosing the optimal set of characters
 No special tests here.
