@@ -108,9 +108,16 @@ def process_int_orth_token(args):
 
 
 # Run in threads and collect all results
-all_results = process_map(
-    process_int_orth_token, list(enumerate(int_orth_tokens)), max_workers=12
-)
+results_pkl_path = "output/all_results.pkl"
+if os.path.exists(results_pkl_path):
+    with open(results_pkl_path, "rb") as f:
+        all_results = pickle.load(f)
+else:
+    all_results = process_map(
+        process_int_orth_token, list(enumerate(int_orth_tokens)), max_workers=12
+    )
+    with open(results_pkl_path, "wb") as f:
+        pickle.dump(all_results, f)
 
 # Flatten and add edges to G
 for result_list in tqdm(all_results):
