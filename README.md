@@ -33,7 +33,8 @@ pip install -r requirements.txt
 
 Libs:
 - https://pypi.org/project/RapidFuzz/: SEEMS VERY FAST
-- https://pypi.org/project/python-Levenshtein/
+- from difflib import SequenceMatcher, built-in
+- ...
 
 ## Tests
 ### 1) Choosing the optimal set of characters

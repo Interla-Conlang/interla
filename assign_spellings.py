@@ -10,10 +10,10 @@ import glob
 import os
 import pickle
 from collections import defaultdict
-from difflib import SequenceMatcher
 
 import networkx as nx
 import pandas as pd
+from rapidfuzz import fuzz
 from tqdm import tqdm
 
 from utils import get_lang_weights
@@ -22,7 +22,7 @@ _, LANG_WEIGHTS = get_lang_weights()
 min_weight = min(LANG_WEIGHTS.values())
 LANG_WEIGHTS = defaultdict(lambda: min_weight, LANG_WEIGHTS)
 
-N = 30_000
+N = 20_000
 
 # 1. Load all pkl files from data/translations/downloads/xx-yy.pkl if yy is "et"
 pkl_dir = "data/translations/downloads"
@@ -67,44 +67,35 @@ G.add_nodes_from(B, bipartite=1)
 
 
 def normalized_similarity(a, b):
-    return SequenceMatcher(None, a, b).ratio()
+    return fuzz.ratio(a, b) / 100
 
 
-# 5. Add weighted edges
-from line_profiler import profile
+for interla_token in tqdm(A):
+    for et_word, assoc_words in list(int_anon_tokens_coocurrences.items()):
+        if not assoc_words:
+            continue
+        distances = dict()
+        for lang, ids in assoc_words.items():
+            dists = []
+            y2word = all_y2word.get(lang, {})
+            for y_id in ids:
+                w = y2word.get(y_id)
+                if w is not None:
+                    distance = 1 - normalized_similarity(interla_token, w)
+                    dists.append(distance)
+            if dists:
+                avg_dist = sum(dists) / len(dists)
+                distances[lang] = avg_dist
 
+        # Compute weighted average distance, renormalized to sum to 1
+        total_weight = sum(LANG_WEIGHTS[lang] for lang in distances)
+        if total_weight > 0:
+            avg_dist = (
+                sum(distances[lang] * LANG_WEIGHTS[lang] for lang in distances)
+                / total_weight
+            )
+            G.add_edge(interla_token, et_word, weight=avg_dist)
 
-@profile
-def tmp():
-    for interla_token in tqdm(A):
-        for et_word, assoc_words in list(int_anon_tokens_coocurrences.items())[:1_000]:
-            if not assoc_words:
-                continue
-            distances = dict()
-            for lang, ids in assoc_words.items():
-                dists = []
-                y2word = all_y2word.get(lang, {})
-                for y_id in ids:
-                    w = y2word.get(y_id)
-                    if w is not None:
-                        distance = 1 - normalized_similarity(interla_token, w)
-                        dists.append(distance)
-                if dists:
-                    avg_dist = sum(dists) / len(dists)
-                    distances[lang] = avg_dist
-
-            # Compute weighted average distance, renormalized to sum to 1
-            total_weight = sum(LANG_WEIGHTS[lang] for lang in distances)
-            if total_weight > 0:
-                avg_dist = (
-                    sum(distances[lang] * LANG_WEIGHTS[lang] for lang in distances)
-                    / total_weight
-                )
-                G.add_edge(interla_token, et_word, weight=avg_dist)
-        exit()
-
-
-tmp()
 # Now G is the bipartite graph as described
 nx.write_gpickle(G, "output/interla_et_bipartite_graph.gpickle")
 
