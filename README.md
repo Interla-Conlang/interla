@@ -1,4 +1,4 @@
-<img width="100" height="100" alt="coolest" src="https://github.com/user-attachments/assets/aa7a6017-25b6-4c08-aa5b-d6940cdee65f" />
+<img width="100" height="100" alt="Interla Conlang Logo" src="https://github.com/user-attachments/assets/aa7a6017-25b6-4c08-aa5b-d6940cdee65f" />
 
 # Interla Conlang Generation
 
