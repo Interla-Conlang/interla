@@ -15,7 +15,7 @@ import networkx as nx
 import pandas as pd
 from rapidfuzz import fuzz
 from tqdm import tqdm
-from tqdm.contrib.concurrent import process_map, thread_map
+from tqdm.contrib.concurrent import process_map
 
 from utils import get_lang_weights
 
@@ -55,7 +55,8 @@ for fpath in tqdm(et_pkls):
 
     for x_id, ys in list(x2ys.items())[:N]:  # Limit to N to match interla tokens
         int_anon_tokens_coocurrences.setdefault(x_id, dict())
-        int_anon_tokens_coocurrences[x_id][lang2] = ys[:3]
+        # int_anon_tokens_coocurrences[x_id][lang2] = ys[:3]
+        int_anon_tokens_coocurrences[x_id][lang2] = ys[0]
 
 print(len(int_anon_tokens_coocurrences), "interla tokens with et words")
 
@@ -78,16 +79,22 @@ def process_int_orth_token(int_orth_token):
     for int_anon_token, assoc_words in int_anon_tokens_coocurrences.items():
         distances = dict()
         for lang, ids in assoc_words.items():
-            dists = []
+            # dists = []
+            # y2word = all_y2word.get(lang, {})
+            # for y_id in ids:
+            #     w = y2word.get(y_id)
+            #     if w is not None:
+            #         distance = 1 - normalized_similarity(int_orth_token, w)
+            #         dists.append(distance)
+            # if dists:
+            #     avg_dist = sum(dists) / len(dists)
+            #     distances[lang] = avg_dist
+
             y2word = all_y2word.get(lang, {})
-            for y_id in ids:
-                w = y2word.get(y_id)
-                if w is not None:
-                    distance = 1 - normalized_similarity(int_orth_token, w)
-                    dists.append(distance)
-            if dists:
-                avg_dist = sum(dists) / len(dists)
-                distances[lang] = avg_dist
+            w = y2word.get(ids)
+            if w is not None:
+                distance = 1 - normalized_similarity(int_orth_token, w)
+                distances[lang] = distance
 
         total_weight = sum(LANG_WEIGHTS[lang] for lang in distances)
         if total_weight > 0:
