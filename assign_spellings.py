@@ -100,7 +100,7 @@ def process_int_orth_token(int_orth_token):
 
 
 # Run in threads and collect all results
-all_results = process_map(process_int_orth_token, A, max_workers=24)
+all_results = process_map(process_int_orth_token, A, max_workers=12)
 
 # Flatten and add edges to G
 for result_list in tqdm(all_results):
