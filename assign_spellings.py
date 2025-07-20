@@ -13,8 +13,7 @@ from collections import defaultdict
 
 import networkx as nx
 import pandas as pd
-from rapidfuzz import fuzz
-from rapidfuzz.process import cdist
+from rapidfuzz.fuzz import ratio
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
@@ -66,35 +65,8 @@ G = nx.Graph()
 A = set(int_orth_tokens)
 B = set(int_anon_tokens_coocurrences.keys())
 
-all_y_words = set()
-for assoc_words in int_anon_tokens_coocurrences.values():
-    for lang, id in assoc_words.items():
-        y2word = all_y2word.get(lang, {})
-        word = y2word.get(id)
-        if word is not None:
-            all_y_words.add(word)
-
-
-# Compute the distance matrix between all int_orth_tokens and all_y_words
-int_orth_tokens_list = list(int_orth_tokens)
-all_y_words_list = list(all_y_words)
-
-# cdist returns a numpy array of similarity scores (0-100)
-# We want distances, so we convert similarity to distance: distance = 1 - (similarity / 100)
-similarity_matrix = cdist(
-    int_orth_tokens_list,
-    all_y_words_list,
-    score_cutoff=50,
-    workers=-1,
-)
-distance_matrix = 1 - (similarity_matrix / 100)
-
 G.add_nodes_from(A, bipartite=0)
 G.add_nodes_from(B, bipartite=1)
-
-
-def normalized_similarity(a, b):
-    return fuzz.ratio(a, b) / 100
 
 
 # TODO: vectorize?
@@ -109,7 +81,7 @@ def process_int_orth_token(int_orth_token):
         # for y_id in ids:
         #     w = y2word.get(y_id)
         #     if w is not None:
-        #         distance = 1 - normalized_similarity(int_orth_token, w)
+        #         distance = 1 - ratio(int_orth_token, w)  / 100
         #         dists.append(distance)
         # if dists:
         #     avg_dist = sum(dists) / len(dists)
@@ -119,7 +91,7 @@ def process_int_orth_token(int_orth_token):
             y2word = all_y2word.get(lang, {})
             w = y2word.get(id)
             if w is not None:
-                distance = 1 - normalized_similarity(int_orth_token, w)
+                distance = 1 - ratio(int_orth_token, w, score_cutoff=50) / 100
                 distances[lang] = distance
 
         total_weight = sum(LANG_WEIGHTS[lang] for lang in distances)
