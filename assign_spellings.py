@@ -14,7 +14,6 @@ from collections import defaultdict
 import networkx as nx
 import pandas as pd
 from rapidfuzz.fuzz import ratio
-from rapidfuzz.process import cdist
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
@@ -34,7 +33,7 @@ et_pkls = [f for f in pkl_files if os.path.basename(f)[:2] == "et"]
 
 # 2. Load all interla tokens
 interla_df = pd.read_csv("output/pronounceable_combinations.csv")
-int_orth_tokens = set(interla_df["word"].tolist())
+int_orth_tokens = list(set(interla_df["word"].tolist()))
 
 print(len(int_orth_tokens), "interla tokens with et words")
 
@@ -42,7 +41,6 @@ print(len(int_orth_tokens), "interla tokens with et words")
 # TODO: 30s long
 int_anon_tokens_coocurrences = dict()  # 156: {"fi": [159, 8], "sv": [2, 8]}
 all_y2word = dict()  # To collect all y2word mappings
-all_y_words = dict()
 
 for fpath in tqdm(et_pkls):
     lang2 = os.path.basename(fpath)[-6:-4]  # e.g. "fi" from "et-fi.pkl"
@@ -60,86 +58,43 @@ for fpath in tqdm(et_pkls):
         # int_anon_tokens_coocurrences[x_id][lang2] = ys[:3]
         int_anon_tokens_coocurrences[x_id][lang2] = ys[0]
 
-        w = y2word.get(ys[0])  # TODO: conflict of langs
-        if w is not None:
-            all_y_words[f"{lang2}:{ys[0]}"] = w
-
 print(len(int_anon_tokens_coocurrences), "interla tokens with et words")
 
 # 4. Build bipartite graph
 G = nx.Graph()
-A = set(int_orth_tokens)
+A = set(range(len(int_orth_tokens)))
 B = set(int_anon_tokens_coocurrences.keys())
 
 G.add_nodes_from(A, bipartite=0)
 G.add_nodes_from(B, bipartite=1)
 
-# Compute the distance matrix between all int_orth_tokens and all_y_words
-int_orth_tokens_list = list(int_orth_tokens)
-all_y_words_list = list(all_y_words)
-y_words_2_index = {w: i for i, w in enumerate(all_y_words_list)}
 
-# Replace words in int_anon_tokens_coocurrences by their indices for the distance matrix
-for int_anon_token, assoc_words in int_anon_tokens_coocurrences.items():
-    int_anon_tokens_coocurrences[int_anon_token] = {
-        lang: y_words_2_index[f"{lang}:{y_id}"] for lang, y_id in assoc_words.items()
-    }
-
-# Compute the distance matrix in chunks to save memory
-# chunk_size = 500  # Adjust as needed for your memory
-# distance_matrices = []
-# for i in range(0, len(int_orth_tokens_list), chunk_size):
-#     chunk = int_orth_tokens_list[i : i + chunk_size]
-#     similarity_matrix = cdist(
-#         chunk,
-#         all_y_words_list,
-#         score_cutoff=50,
-#         workers=-1,
-#     )
-#     distance_matrix = 1 - (similarity_matrix / 100)
-#     distance_matrices.append(distance_matrix)
-# Optionally, concatenate if you need the full matrix:
-# import numpy as np
-# full_distance_matrix = np.vstack(distance_matrices)
-
-
-# TODO: vectorize?
-def process_int_orth_token(int_orth_token):
+def process_int_orth_token(args):
+    i, int_orth_token = args
     results = []
-    distance_matrix = (
-        1
-        - cdist(
-            [int_orth_token],
-            all_y_words_list,
-            score_cutoff=50,
-            workers=-1,
-        )
-        / 100
-    )
     for int_anon_token, assoc_words in int_anon_tokens_coocurrences.items():
         distances = dict()
 
         # for lang, ids in assoc_words.items():
-        # dists = []
-        # y2word = all_y2word.get(lang, {})
-        # for y_id in ids:
-        #     w = y2word.get(y_id)
-        #     if w is not None:
-        #         distance = 1 - ratio(int_orth_token, w)  / 100
-        #         dists.append(distance)
-        # if dists:
-        #     avg_dist = sum(dists) / len(dists)
-        #     distances[lang] = avg_dist
+        #     dists = []
+        #     y2word = all_y2word.get(lang, {})
+        #     for y_id in ids:
+        #         w = y2word.get(y_id)
+        #         if w is not None:
+        #             distance = 1 - ratio(int_orth_token, w) / 100
+        #             dists.append(distance)
+        #     if dists:
+        #         avg_dist = sum(dists) / len(dists)
+        #         distances[lang] = avg_dist
 
         for lang, id in assoc_words.items():
-            # y2word = all_y2word.get(lang, {})
-            # w = y2word.get(id)
-            # if w is not None:
-            # distance = 1 - ratio(int_orth_token, w, score_cutoff=50) / 100
-
-            distance = distance_matrix[0, id]
-
-            distances[lang] = distance
+            y2word = all_y2word.get(lang, {})
+            w = y2word.get(id)
+            if w is not None:
+                distance = 1 - ratio(
+                    int_orth_token, w, score_cutoff=50
+                ) / 100
+                distances[lang] = distance
 
         total_weight = sum(LANG_WEIGHTS[lang] for lang in distances)
         if total_weight > 0:
@@ -147,19 +102,26 @@ def process_int_orth_token(int_orth_token):
                 sum(distances[lang] * LANG_WEIGHTS[lang] for lang in distances)
                 / total_weight
             )
-            results.append((int_orth_token, int_anon_token, avg_dist))
+            if avg_dist != 1.0:
+                results.append((i, int_anon_token, avg_dist))
     return results
 
 
 # Run in threads and collect all results
-all_results = process_map(process_int_orth_token, A, max_workers=12)
-# for int_orth_token in tqdm(A):
-#     result = process_int_orth_token(int_orth_token)
+all_results = process_map(
+    process_int_orth_token, list(enumerate(int_orth_tokens)), max_workers=12
+)
 
 # Flatten and add edges to G
 for result_list in tqdm(all_results):
     for int_orth_token, int_anon_token, avg_dist in result_list:
         G.add_edge(int_orth_token, int_anon_token, weight=avg_dist)
+
+# Complete by adding all missing edges with height = 1.0
+for int_orth_token in A:
+    for int_anon_token in B:
+        if not G.has_edge(int_orth_token, int_anon_token):
+            G.add_edge(int_orth_token, int_anon_token, weight=1.0)
 
 # Now G is the bipartite graph as described
 nx.write_gpickle(G, "output/interla_et_bipartite_graph.gpickle")
