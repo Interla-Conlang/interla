@@ -64,3 +64,8 @@ combinations = [combo for combo in combinations if is_pronounceable(combo)]
 for combo in combinations:
     print(combo)
 print("Total combinations:", len(combinations))
+
+# Save the pronounceable combinations to a CSV file
+pd.DataFrame({"word": combinations}).to_csv(
+    "output/pronounceable_combinations.csv", index=False
+)

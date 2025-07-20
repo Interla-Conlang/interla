@@ -1,3 +1,4 @@
 output
 data/translations/downloads
 *.ods#
+.venv
