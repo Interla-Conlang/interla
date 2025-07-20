@@ -24,12 +24,41 @@ _, LANG_WEIGHTS = get_lang_weights()
 min_weight = min(LANG_WEIGHTS.values())
 LANG_WEIGHTS = defaultdict(lambda: min_weight, LANG_WEIGHTS)
 
-N = 2_000
-
+N = 10_000
+TO_KEEP = {
+    "en",
+    "zh_cn",
+    # "hi",  # TODO: need transliteration
+    "es",
+    # "ar",  # TODO: need transliteration
+    # "bn",  # TODO: need transliteration
+    "fr",
+    # "ru",  # TODO: need transliteration
+    "pt",
+    # "ur",  # TODO: need transliteration
+    "id",
+    "de",
+    # "ja",  # TODO: need transliteration
+    # "te",  # TODO: need transliteration
+    "tr",
+    # "ta",  # TODO: need transliteration
+    # "ko",  # TODO: need transliteration
+    "vi",
+    "it",
+    # "th",  # TODO: need transliteration
+    "tl",
+    "zh_tw",
+    # "fa",  # TODO: need transliteration
+    "zh_cn",
+}
 # 1. Load all pkl files from data/translations/downloads/xx-yy.pkl if yy is "et"
 pkl_dir = "data/translations/downloads"
 pkl_files = glob.glob(os.path.join(pkl_dir, "*.pkl"))
-et_pkls = [f for f in pkl_files if os.path.basename(f)[:2] == "et"]
+et_pkls = [
+    f
+    for f in pkl_files
+    if os.path.basename(f)[:2] == "et" and os.path.basename(f)[-6:-4] in TO_KEEP
+]
 # TODO: ALSO USE os.path.basename(f)[:2] == "et"
 
 # 2. Load all interla tokens
@@ -58,6 +87,7 @@ for fpath in tqdm(et_pkls):
 
     all_y2word[lang2] = y2word  # Collect all y2word mappings
 
+    # TODO: WE ASSUME THERE ARE RANKED BY FREQUENCY
     for x_id, ys in list(x2ys.items())[:N]:  # Limit to N to match interla tokens
         # reindex x_id
         word = x2word.get(x_id)
@@ -163,9 +193,10 @@ else:
 for i, int_orth_token in enumerate(int_orth_tokens):
     j = matching[i]
     assoc_words = int_anon_tokens_coocurrences.get(j, {})
-    print(f"Interla: {int_orth_token}")
-    for lang, y_id in assoc_words.items():
-        y2word = all_y2word.get(lang, {})
-        word = y2word.get(y_id, "")
-        print(f"  {lang}: {word}")
-    print()
+    if len(assoc_words) > 30:
+        print(f"Interla: {int_orth_token}")
+        for lang, y_id in assoc_words.items():
+            y2word = all_y2word.get(lang, {})
+            word = y2word.get(y_id, "")
+            print(f"  {lang}: {word}")
+        print()
