@@ -38,6 +38,10 @@ Libs:
 - from difflib import SequenceMatcher, built-in
 - ...
 
+### Choosing minimum weight bipartite full matching algorithm
+- [networkx minimum_weight_full_matching](https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.bipartite.matching.minimum_weight_full_matching.html): graph takes too much space in memory
+- [scipy min_weight_full_bipartite_matching](https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csgraph.min_weight_full_bipartite_matching.html): CSR/COO graph matrix takes too much space in memory
+
 ## Tests
 ### 1) Choosing the optimal set of characters
 No special tests here.

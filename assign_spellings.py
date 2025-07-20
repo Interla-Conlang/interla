@@ -11,9 +11,10 @@ import os
 import pickle
 from collections import defaultdict
 
-import networkx as nx
+import numpy as np
 import pandas as pd
 from rapidfuzz.fuzz import ratio
+from scipy.optimize import linear_sum_assignment
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
@@ -41,12 +42,16 @@ print(len(int_orth_tokens), "interla tokens with et words")
 # TODO: 30s long
 int_anon_tokens_coocurrences = dict()  # 156: {"fi": [159, 8], "sv": [2, 8]}
 all_y2word = dict()  # To collect all y2word mappings
+all_word2x = dict()  # To collect all word2x mappings
 
 for fpath in tqdm(et_pkls):
     lang2 = os.path.basename(fpath)[-6:-4]  # e.g. "fi" from "et-fi.pkl"
 
     with open(fpath, "rb") as f:
-        _, y2word, x2ys = pickle.load(f)
+        word2x, y2word, x2ys = pickle.load(f)
+        x2word = {
+            v: k for k, v in word2x.items()
+        }  # Reverse mapping: id -> word in lang1
         # word2x is a dict: word -> id in lang1
         # y2word is a dict: id -> word in lang2
         # x2ys is a dict: id in lang1 -> list of ids in lang2
@@ -54,19 +59,19 @@ for fpath in tqdm(et_pkls):
     all_y2word[lang2] = y2word  # Collect all y2word mappings
 
     for x_id, ys in list(x2ys.items())[:N]:  # Limit to N to match interla tokens
-        int_anon_tokens_coocurrences.setdefault(x_id, dict())
+        # reindex x_id
+        word = x2word.get(x_id)
+        if word in all_word2x:
+            new_x_id = all_word2x[word]
+        else:
+            new_x_id = len(all_word2x)
+            all_word2x[word] = new_x_id
+
+        int_anon_tokens_coocurrences.setdefault(new_x_id, dict())
         # int_anon_tokens_coocurrences[x_id][lang2] = ys[:3]
-        int_anon_tokens_coocurrences[x_id][lang2] = ys[0]
+        int_anon_tokens_coocurrences[new_x_id][lang2] = ys[0]
 
 print(len(int_anon_tokens_coocurrences), "interla tokens with et words")
-
-# 4. Build bipartite graph
-G = nx.Graph()
-A = set(range(len(int_orth_tokens)))
-B = set(int_anon_tokens_coocurrences.keys())
-
-G.add_nodes_from(A, bipartite=0)
-G.add_nodes_from(B, bipartite=1)
 
 
 def process_int_orth_token(args):
@@ -91,9 +96,7 @@ def process_int_orth_token(args):
             y2word = all_y2word.get(lang, {})
             w = y2word.get(id)
             if w is not None:
-                distance = 1 - ratio(
-                    int_orth_token, w, score_cutoff=50
-                ) / 100
+                distance = 1 - ratio(int_orth_token, w, score_cutoff=50) / 100
                 distances[lang] = distance
 
         total_weight = sum(LANG_WEIGHTS[lang] for lang in distances)
@@ -119,36 +122,50 @@ else:
     with open(results_pkl_path, "wb") as f:
         pickle.dump(all_results, f)
 
-# Flatten and add edges to G
-for result_list in tqdm(all_results):
-    for int_orth_token, int_anon_token, avg_dist in result_list:
-        G.add_edge(int_orth_token, int_anon_token, weight=avg_dist)
+matching_pkl_path = "output/interla_et_matching.pkl"
+if os.path.exists(matching_pkl_path):
+    with open(matching_pkl_path, "rb") as f:
+        matching = pickle.load(f)
+else:
+    # Build biadjacency matrix
+    nb_orth_tokens = len(int_orth_tokens)
+    nb_anon_tokens = len(int_anon_tokens_coocurrences)
+    A_list = list(range(nb_orth_tokens))
+    B_list = list(int_anon_tokens_coocurrences.keys())
 
-# Complete by adding all missing edges with height = 1.0
-for int_orth_token in A:
-    for int_anon_token in B:
-        if not G.has_edge(int_orth_token, int_anon_token):
-            G.add_edge(int_orth_token, int_anon_token, weight=1.0)
+    # Use a dense numpy array for insertion
+    biadjacency = np.ones(
+        (len(A_list), len(B_list)), dtype=np.float64
+    )  # default to 1.0
 
-# Now G is the bipartite graph as described
-nx.write_gpickle(G, "output/interla_et_bipartite_graph.gpickle")
+    for result_list in tqdm(all_results):
+        for int_orth_token, int_anon_token, avg_dist in result_list:
+            # assert int_orth_token < nb_orth_tokens, (
+            #     f"int_orth_token {int_orth_token} >= {nb_orth_tokens}"
+            # )
+            # assert int_anon_token < nb_anon_tokens, (
+            #     f"int_anon_token {int_anon_token} >= {nb_anon_tokens}"
+            # )
+            # assert 0 <= avg_dist <= 1.0, f"avg_dist {avg_dist} not in [0, 1]"
+            biadjacency[int_orth_token, int_anon_token] = avg_dist
 
-# Compute the minimum weight full matching (maximum weight matching with negated weights)
-matching = nx.algorithms.bipartite.matching.minimum_weight_full_matching(
-    G, weight="weight"
-)
+    # Compute the minimum weight full matching using linear_sum_assignment
+    row_ind, col_ind = linear_sum_assignment(biadjacency, maximize=False)
 
-# Save the matching to a file
-with open("output/interla_et_matching.pkl", "wb") as f:
-    pickle.dump(matching, f)
+    # Build matching dict: int_orth_token -> int_anon_token
+    matching = {i.item(): j.item() for i, j in zip(row_ind, col_ind)}
+
+    # Save the matching to a file
+    with open(matching_pkl_path, "wb") as f:
+        pickle.dump(matching, f)
 
 # Then display the words from A with all their associated "w = y2word.get(y_id)"
-for int_orth_token in A:
-    int_anon_token = matching[int_orth_token]
-    assoc_words = int_anon_tokens_coocurrences.get(int_anon_token, {})
-    print(f"Interla: {int_orth_token} <-> et: {int_anon_token}")
-    for lang, ids in assoc_words.items():
+for i, int_orth_token in enumerate(int_orth_tokens):
+    j = matching[i]
+    assoc_words = int_anon_tokens_coocurrences.get(j, {})
+    print(f"Interla: {int_orth_token}")
+    for lang, y_id in assoc_words.items():
         y2word = all_y2word.get(lang, {})
-        words = [y2word.get(y_id, "") for y_id in ids]
-        print(f"  {lang}: {', '.join(words)}")
+        word = y2word.get(y_id, "")
+        print(f"  {lang}: {word}")
     print()
