@@ -10,16 +10,14 @@ import glob
 import os
 import pickle
 from collections import defaultdict
-from unittest import result
 
 import networkx as nx
 import pandas as pd
 from rapidfuzz import fuzz
 from tqdm import tqdm
-from tqdm.contrib.concurrent import thread_map, process_map
+from tqdm.contrib.concurrent import process_map, thread_map
 
 from utils import get_lang_weights
-from more_itertools import chunked
 
 _, LANG_WEIGHTS = get_lang_weights()
 min_weight = min(LANG_WEIGHTS.values())
@@ -75,35 +73,34 @@ def normalized_similarity(a, b):
 
 
 # TODO: vectorize?
-def process_int_orth_tokens(int_orth_tokens):
+def process_int_orth_token(int_orth_token):
     results = []
-    for int_orth_token in tqdm(int_orth_tokens):
-        for int_anon_token, assoc_words in int_anon_tokens_coocurrences.items():
-            distances = dict()
-            for lang, ids in assoc_words.items():
-                dists = []
-                y2word = all_y2word.get(lang, {})
-                for y_id in ids:
-                    w = y2word.get(y_id)
-                    if w is not None:
-                        distance = 1 - normalized_similarity(int_orth_token, w)
-                        dists.append(distance)
-                if dists:
-                    avg_dist = sum(dists) / len(dists)
-                    distances[lang] = avg_dist
+    for int_anon_token, assoc_words in int_anon_tokens_coocurrences.items():
+        distances = dict()
+        for lang, ids in assoc_words.items():
+            dists = []
+            y2word = all_y2word.get(lang, {})
+            for y_id in ids:
+                w = y2word.get(y_id)
+                if w is not None:
+                    distance = 1 - normalized_similarity(int_orth_token, w)
+                    dists.append(distance)
+            if dists:
+                avg_dist = sum(dists) / len(dists)
+                distances[lang] = avg_dist
 
-            total_weight = sum(LANG_WEIGHTS[lang] for lang in distances)
-            if total_weight > 0:
-                avg_dist = (
-                    sum(distances[lang] * LANG_WEIGHTS[lang] for lang in distances)
-                    / total_weight
-                )
-                results.append((int_orth_token, int_anon_token, avg_dist))
+        total_weight = sum(LANG_WEIGHTS[lang] for lang in distances)
+        if total_weight > 0:
+            avg_dist = (
+                sum(distances[lang] * LANG_WEIGHTS[lang] for lang in distances)
+                / total_weight
+            )
+            results.append((int_orth_token, int_anon_token, avg_dist))
     return results
 
+
 # Run in threads and collect all results
-chunks_of_A = list(chunked(list(A), len(A) // 12 + 1))
-all_results = process_map(process_int_orth_tokens, chunks_of_A, max_workers=24)
+all_results = process_map(process_int_orth_token, A, max_workers=24)
 
 # Flatten and add edges to G
 for result_list in tqdm(all_results):
