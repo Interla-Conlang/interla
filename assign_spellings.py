@@ -72,6 +72,7 @@ def normalized_similarity(a, b):
     return fuzz.ratio(a, b) / 100
 
 
+# TODO: vectorize?
 def process_int_orth_token(int_orth_token):
     results = []
     for int_anon_token, assoc_words in int_anon_tokens_coocurrences.items():
@@ -98,7 +99,7 @@ def process_int_orth_token(int_orth_token):
     return results
 
 # Run in threads and collect all results
-all_results = thread_map(process_int_orth_token, A, max_workers=32)
+all_results = thread_map(process_int_orth_token, A, max_workers=64)
 
 # Flatten and add edges to G
 for result_list in tqdm(all_results):
