@@ -15,7 +15,7 @@ import networkx as nx
 import pandas as pd
 from rapidfuzz import fuzz
 from tqdm import tqdm
-from tqdm.contrib.concurrent import thread_map
+from tqdm.contrib.concurrent import thread_map, process_map
 
 from utils import get_lang_weights
 
@@ -99,7 +99,7 @@ def process_int_orth_token(int_orth_token):
     return results
 
 # Run in threads and collect all results
-all_results = thread_map(process_int_orth_token, A, max_workers=64)
+all_results = thread_map(process_int_orth_token, A, max_workers=16)
 
 # Flatten and add edges to G
 for result_list in tqdm(all_results):
