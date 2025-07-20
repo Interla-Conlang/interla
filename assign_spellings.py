@@ -13,8 +13,8 @@ from collections import defaultdict
 
 import networkx as nx
 import pandas as pd
-from more_itertools import chunked
 from rapidfuzz import fuzz
+from rapidfuzz.process import cdist
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
@@ -66,6 +66,29 @@ G = nx.Graph()
 A = set(int_orth_tokens)
 B = set(int_anon_tokens_coocurrences.keys())
 
+all_y_words = set()
+for assoc_words in int_anon_tokens_coocurrences.values():
+    for lang, id in assoc_words.items():
+        y2word = all_y2word.get(lang, {})
+        word = y2word.get(id)
+        if word is not None:
+            all_y_words.add(word)
+
+
+# Compute the distance matrix between all int_orth_tokens and all_y_words
+int_orth_tokens_list = list(int_orth_tokens)
+all_y_words_list = list(all_y_words)
+
+# cdist returns a numpy array of similarity scores (0-100)
+# We want distances, so we convert similarity to distance: distance = 1 - (similarity / 100)
+similarity_matrix = cdist(
+    int_orth_tokens_list,
+    all_y_words_list,
+    score_cutoff=50,
+    workers=-1,
+)
+distance_matrix = 1 - (similarity_matrix / 100)
+
 G.add_nodes_from(A, bipartite=0)
 G.add_nodes_from(B, bipartite=1)
 
@@ -75,42 +98,42 @@ def normalized_similarity(a, b):
 
 
 # TODO: vectorize?
-def process_int_orth_tokens(int_orth_tokens):
+def process_int_orth_token(int_orth_token):
     results = []
-    for int_orth_token in tqdm(int_orth_tokens, desc="Processing int orth tokens"):
-        for int_anon_token, assoc_words in int_anon_tokens_coocurrences.items():
-            distances = dict()
-            for lang, ids in assoc_words.items():
-                # dists = []
-                # y2word = all_y2word.get(lang, {})
-                # for y_id in ids:
-                #     w = y2word.get(y_id)
-                #     if w is not None:
-                #         distance = 1 - normalized_similarity(int_orth_token, w)
-                #         dists.append(distance)
-                # if dists:
-                #     avg_dist = sum(dists) / len(dists)
-                #     distances[lang] = avg_dist
+    for int_anon_token, assoc_words in int_anon_tokens_coocurrences.items():
+        distances = dict()
 
-                y2word = all_y2word.get(lang, {})
-                w = y2word.get(ids)
-                if w is not None:
-                    distance = 1 - normalized_similarity(int_orth_token, w)
-                    distances[lang] = distance
+        # for lang, ids in assoc_words.items():
+        # dists = []
+        # y2word = all_y2word.get(lang, {})
+        # for y_id in ids:
+        #     w = y2word.get(y_id)
+        #     if w is not None:
+        #         distance = 1 - normalized_similarity(int_orth_token, w)
+        #         dists.append(distance)
+        # if dists:
+        #     avg_dist = sum(dists) / len(dists)
+        #     distances[lang] = avg_dist
 
-            total_weight = sum(LANG_WEIGHTS[lang] for lang in distances)
-            if total_weight > 0:
-                avg_dist = (
-                    sum(distances[lang] * LANG_WEIGHTS[lang] for lang in distances)
-                    / total_weight
-                )
-                results.append((int_orth_token, int_anon_token, avg_dist))
+        for lang, id in assoc_words.items():
+            y2word = all_y2word.get(lang, {})
+            w = y2word.get(id)
+            if w is not None:
+                distance = 1 - normalized_similarity(int_orth_token, w)
+                distances[lang] = distance
+
+        total_weight = sum(LANG_WEIGHTS[lang] for lang in distances)
+        if total_weight > 0:
+            avg_dist = (
+                sum(distances[lang] * LANG_WEIGHTS[lang] for lang in distances)
+                / total_weight
+            )
+            results.append((int_orth_token, int_anon_token, avg_dist))
     return results
 
 
 # Run in threads and collect all results
-chunks_of_A = list(chunked(list(A), len(A) // 12 + 1))
-all_results = process_map(process_int_orth_tokens, chunks_of_A, max_workers=12)
+all_results = process_map(process_int_orth_token, A, max_workers=12)
 
 # Flatten and add edges to G
 for result_list in tqdm(all_results):
