@@ -13,6 +13,7 @@ from collections import defaultdict
 
 import networkx as nx
 import pandas as pd
+from more_itertools import chunked
 from rapidfuzz import fuzz
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
@@ -74,40 +75,42 @@ def normalized_similarity(a, b):
 
 
 # TODO: vectorize?
-def process_int_orth_token(int_orth_token):
+def process_int_orth_tokens(int_orth_tokens):
     results = []
-    for int_anon_token, assoc_words in int_anon_tokens_coocurrences.items():
-        distances = dict()
-        for lang, ids in assoc_words.items():
-            # dists = []
-            # y2word = all_y2word.get(lang, {})
-            # for y_id in ids:
-            #     w = y2word.get(y_id)
-            #     if w is not None:
-            #         distance = 1 - normalized_similarity(int_orth_token, w)
-            #         dists.append(distance)
-            # if dists:
-            #     avg_dist = sum(dists) / len(dists)
-            #     distances[lang] = avg_dist
+    for int_orth_token in tqdm(int_orth_tokens, desc="Processing int orth tokens"):
+        for int_anon_token, assoc_words in int_anon_tokens_coocurrences.items():
+            distances = dict()
+            for lang, ids in assoc_words.items():
+                # dists = []
+                # y2word = all_y2word.get(lang, {})
+                # for y_id in ids:
+                #     w = y2word.get(y_id)
+                #     if w is not None:
+                #         distance = 1 - normalized_similarity(int_orth_token, w)
+                #         dists.append(distance)
+                # if dists:
+                #     avg_dist = sum(dists) / len(dists)
+                #     distances[lang] = avg_dist
 
-            y2word = all_y2word.get(lang, {})
-            w = y2word.get(ids)
-            if w is not None:
-                distance = 1 - normalized_similarity(int_orth_token, w)
-                distances[lang] = distance
+                y2word = all_y2word.get(lang, {})
+                w = y2word.get(ids)
+                if w is not None:
+                    distance = 1 - normalized_similarity(int_orth_token, w)
+                    distances[lang] = distance
 
-        total_weight = sum(LANG_WEIGHTS[lang] for lang in distances)
-        if total_weight > 0:
-            avg_dist = (
-                sum(distances[lang] * LANG_WEIGHTS[lang] for lang in distances)
-                / total_weight
-            )
-            results.append((int_orth_token, int_anon_token, avg_dist))
+            total_weight = sum(LANG_WEIGHTS[lang] for lang in distances)
+            if total_weight > 0:
+                avg_dist = (
+                    sum(distances[lang] * LANG_WEIGHTS[lang] for lang in distances)
+                    / total_weight
+                )
+                results.append((int_orth_token, int_anon_token, avg_dist))
     return results
 
 
 # Run in threads and collect all results
-all_results = process_map(process_int_orth_token, A, max_workers=12)
+chunks_of_A = list(chunked(list(A), len(A) // 12 + 1))
+all_results = process_map(process_int_orth_tokens, chunks_of_A, max_workers=12)
 
 # Flatten and add edges to G
 for result_list in tqdm(all_results):
