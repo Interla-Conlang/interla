@@ -25,3 +25,7 @@
 ```bash
 pip install -r requirements.txt
 ```
+
+### Tests
+Test the model that generate orthography from tokens coocurrences:
+I used word translations from [kakaobrain/word2word](https://github.com/kakaobrain/word2word).
