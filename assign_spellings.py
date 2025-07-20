@@ -22,7 +22,7 @@ _, LANG_WEIGHTS = get_lang_weights()
 min_weight = min(LANG_WEIGHTS.values())
 LANG_WEIGHTS = defaultdict(lambda: min_weight, LANG_WEIGHTS)
 
-N = 20_000
+N = 2_000
 
 # 1. Load all pkl files from data/translations/downloads/xx-yy.pkl if yy is "et"
 pkl_dir = "data/translations/downloads"
@@ -32,7 +32,9 @@ et_pkls = [f for f in pkl_files if os.path.basename(f)[:2] == "et"]
 
 # 2. Load all interla tokens
 interla_df = pd.read_csv("output/pronounceable_combinations.csv")
-int_orth_tokens = interla_df["word"].tolist()
+int_orth_tokens = set(interla_df["word"].tolist())
+
+print(len(int_orth_tokens), "interla tokens with et words")
 
 # 3. Collect all "et" words and their associated words from all other languages
 # TODO: 1mn long
