@@ -72,8 +72,8 @@ def normalized_similarity(a, b):
     return fuzz.ratio(a, b) / 100
 
 
-# for int_orth_token in tqdm(A):
 def process_int_orth_token(int_orth_token):
+    results = []
     for int_anon_token, assoc_words in int_anon_tokens_coocurrences.items():
         distances = dict()
         for lang, ids in assoc_words.items():
@@ -88,14 +88,22 @@ def process_int_orth_token(int_orth_token):
                 avg_dist = sum(dists) / len(dists)
                 distances[lang] = avg_dist
 
-        # Compute weighted average distance, renormalized to sum to 1
         total_weight = sum(LANG_WEIGHTS[lang] for lang in distances)
         if total_weight > 0:
             avg_dist = (
                 sum(distances[lang] * LANG_WEIGHTS[lang] for lang in distances)
                 / total_weight
             )
-            G.add_edge(int_orth_token, int_anon_token, weight=avg_dist)
+            results.append((int_orth_token, int_anon_token, avg_dist))
+    return results
+
+# Run in threads and collect all results
+all_results = thread_map(process_int_orth_token, A, max_workers=32)
+
+# Flatten and add edges to G
+for result_list in tqdm(all_results):
+    for int_orth_token, int_anon_token, avg_dist in result_list:
+        G.add_edge(int_orth_token, int_anon_token, weight=avg_dist)
 
 
 thread_map(process_int_orth_token, A, max_workers=32)
