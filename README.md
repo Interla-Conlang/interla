@@ -26,6 +26,19 @@
 pip install -r requirements.txt
 ```
 
-### Tests
-Test the model that generate orthography from tokens coocurrences:
+## Tests
+### 1) Choosing the optimal set of characters
+No special tests here.
+
+### 2) Generating all possible interla spelled tokens
+No special tests here.
+
+### 3) Training the interla model
+We test on a small scale model (not a large LLM for example), to ensure that the concept works before scaling up.
+
+### 4) Choosing the spelling of the anonymous tokens
+Before we have the trained model from step 3, we can try to optimize the spelling of the anonymous tokens, by defining anonymous tokens from an existing languages, and coocurrences from real corpus.
+
 I used word translations from [kakaobrain/word2word](https://github.com/kakaobrain/word2word).
+I chose arbitrarily that Interla would replace "Estonian", i.e. we replace estonian tokens by interla learned tokens.
+
