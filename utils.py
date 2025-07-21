@@ -8,6 +8,9 @@ L2_WEIGHT = 0.5  # Weight for L2 speakers in the total weight calculation
 def get_lang_weights():
     languages = pd.read_excel("data/languages.ods")
 
+    # remove where Language or L1_speakers or L2_speakers is NaN
+    languages = languages.dropna(subset=["Language", "L1_speakers", "L2_speakers"])
+
     total_l1_speakers = languages["L1_speakers"].sum()
     total_l2_speakers = languages["L2_speakers"].sum()
     total_weight = total_l1_speakers + total_l2_speakers * L2_WEIGHT

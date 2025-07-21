@@ -1,3 +1,4 @@
+import os
 import pickle
 
 from tqdm import tqdm
@@ -7,30 +8,40 @@ from str_barycenter import string_barycenter
 
 int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS = step_1()
 
-vocab = {}
+interla_vocab_path = "output/interla_vocab.pkl"
 
-for int_anon_token, assoc_words in tqdm(
-    int_anon_tokens_coocurrences.items(), desc="Finding optimal interla tokens"
-):
-    words = [all_y2normWord[lang].get(w_id, "") for lang, w_id in assoc_words.items()]
-    if len(words) == 1:
-        int_orth_token = words[0]
-    else:
-        int_orth_token = string_barycenter(words)
+if os.path.exists(interla_vocab_path):
+    with open(interla_vocab_path, "rb") as f:
+        vocab = pickle.load(f)
+else:
+    vocab = {}
 
-    vocab[int_orth_token] = int_anon_token
+    for int_anon_token, assoc_words in tqdm(
+        int_anon_tokens_coocurrences.items(), desc="Finding optimal interla tokens"
+    ):
+        words = [
+            all_y2normWord[lang].get(w_id, "") for lang, w_id in assoc_words.items()
+        ]
+        weights = [LANG_WEIGHTS[lang] for lang in assoc_words.keys()]
+        if len(words) == 1:
+            int_orth_token = words[0]
+        else:
+            int_orth_token = string_barycenter(words, weights)
 
-# Save the vocabulary to a pickle file
+        vocab[int_orth_token] = int_anon_token
 
-with open("output/interla_vocab.pkl", "wb") as f:
-    pickle.dump(vocab, f)
+    # Save the vocabulary to a pickle file
+
+    with open(interla_vocab_path, "wb") as f:
+        pickle.dump(vocab, f)
 
 
 for int_orth_token, int_anon_token in vocab.items():
     assoc_words = int_anon_tokens_coocurrences.get(int_anon_token, {})
-    print(f"Interla: {int_orth_token}")
-    for lang, y_id in assoc_words.items():
-        y2word = all_y2word.get(lang, {})
-        word = y2word.get(y_id, "")
-        print(f"  {lang}: {word}")
-    print()
+    if len(assoc_words) > 5:
+        print(f"Interla: {int_orth_token}")
+        for lang, y_id in assoc_words.items():
+            y2word = all_y2word.get(lang, {})
+            word = y2word.get(y_id, "")
+            print(f"  {lang}: {word}")
+        print()

@@ -3,9 +3,10 @@ Some tests around the notion of barycenter for strings.
 """
 
 from collections import Counter
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from Levenshtein import opcodes
+
 
 
 def align_pair(w1, w2):
@@ -42,21 +43,44 @@ def align_words_list(word_list: List[str]) -> List[Tuple[str, ...]]:
     return list(zip(*aligned))
 
 
-def string_barycenter(words: List[str]) -> str:
+def string_barycenter(words: List[str], weights: Optional[List[float]] = None) -> str:
+    if weights is None:
+        weights = [1.0] * len(words)
     # Align the words first
     aligned = align_words_list(words)
     bary = ""
     for chars in aligned:
-        most_common = Counter(chars).most_common(1)[0][0]
+        counter = Counter()
+        for char, weight in zip(chars, weights):
+            counter[char] += weight
+        most_common = counter.most_common(1)[0][0]
         if most_common != "-":
             bary += most_common
     return bary
 
 
 if __name__ == "__main__":
-    # Output
-    for line in align_words_list(["esprit", "spirit", "spirito", "gespenst"]):
-        print(line)
+    # *** TESTS ***
+    # for line in align_words_list(["esprit", "spirit", "spirito", "gespenst"]):
+    #     print(line)
 
-    print(string_barycenter(["hello", "hallo", "hola"]))
-    print(string_barycenter(["spirit", "spirito", "esprit", "gespenst"]))
+    # print(string_barycenter(["hello", "hallo", "hola"]))
+    # print(string_barycenter(["spirit", "spirito", "esprit", "gespenst"]))
+
+
+    from assign_spellings_common import process_str
+    from utils import get_lang_weights
+    _, LANG_WEIGHTS = get_lang_weights()
+    words = [
+        process_str(s)
+        for s in [
+            "Oberschenkelmuskeln",
+            "quads",
+            "ordinazione",
+            "kasların",
+            "insuffisante",
+            "prenderem",
+        ]
+    ]
+    weights = [LANG_WEIGHTS[lang] for lang in ["de", "en", "it", "tr", "fr", "pt"]]
+    print(string_barycenter(words, weights))

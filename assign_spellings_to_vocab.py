@@ -6,11 +6,8 @@ Abbreviations:
 - orth: orthographied
 """
 
-import glob
 import os
 import pickle
-import unicodedata
-from collections import defaultdict
 
 import numpy as np
 import pandas as pd
