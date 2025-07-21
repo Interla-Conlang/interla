@@ -3,6 +3,7 @@ Some tests around the notion of barycenter for strings.
 """
 
 from collections import Counter
+from typing import List, Tuple
 
 from Levenshtein import opcodes
 
@@ -27,7 +28,7 @@ def align_pair(w1, w2):
 
 
 # progressive alignment
-def align_words_list(word_list):
+def align_words_list(word_list: List[str]) -> List[Tuple[str, ...]]:
     aligned = list(word_list[:2])
     a1, a2 = align_pair(*aligned)
     aligned = [a1, a2]
@@ -41,12 +42,7 @@ def align_words_list(word_list):
     return list(zip(*aligned))
 
 
-# Output
-for line in align_words_list(["esprit", "spirit", "spirito", "gespenst"]):
-    print(line)
-
-
-def string_barycenter(words):
+def string_barycenter(words: List[str]) -> str:
     # Align the words first
     aligned = align_words_list(words)
     bary = ""
@@ -57,5 +53,10 @@ def string_barycenter(words):
     return bary
 
 
-print(string_barycenter(["hello", "hallo", "hola"]))
-print(string_barycenter(["spirit", "spirito", "esprit", "gespenst"]))
+if __name__ == "__main__":
+    # Output
+    for line in align_words_list(["esprit", "spirit", "spirito", "gespenst"]):
+        print(line)
+
+    print(string_barycenter(["hello", "hallo", "hola"]))
+    print(string_barycenter(["spirit", "spirito", "esprit", "gespenst"]))
