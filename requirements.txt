@@ -1,3 +1,4 @@
 pandas
 odfpy
 pythainlp
+levenshtein
