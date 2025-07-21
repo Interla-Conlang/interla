@@ -2,4 +2,3 @@ pandas
 odfpy
 pythainlp
 levenshtein
-pyfamsa
