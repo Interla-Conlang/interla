@@ -4,24 +4,10 @@ Some tests around the notion of barycenter for strings.
 
 from collections import Counter
 
-
-def string_barycenter(words):
-    max_len = max(len(w) for w in words)
-    bary = ""
-    for i in range(max_len):
-        chars = [w[i] for w in words if i < len(w)]
-        most_common = Counter(chars).most_common(1)[0][0]
-        bary += most_common
-    return bary
-
-
-# print(string_barycenter(["hello", "hallo", "hola"]))
-# TODO: would require aligning the strings first (because for example the "a" in hola should be aligned with the "o" in "hello" and "hallo", not the "l")
-
 from Levenshtein import opcodes
 
 
-def align_words(w1, w2):
+def align_pair(w1, w2):
     aligned1, aligned2 = [], []
     for tag, i1, i2, j1, j2 in opcodes(w1, w2):
         if tag == "equal":
@@ -32,33 +18,44 @@ def align_words(w1, w2):
                 aligned1.append(a)
                 aligned2.append(b)
         elif tag == "insert":
-            aligned1.extend([None] * (j2 - j1))
+            aligned1.extend(["-"] * (j2 - j1))
             aligned2.extend(w2[j1:j2])
         elif tag == "delete":
             aligned1.extend(w1[i1:i2])
-            aligned2.extend([None] * (i2 - i1))
+            aligned2.extend(["-"] * (i2 - i1))
     return aligned1, aligned2
 
 
-# a, b = align_words("spirit", "esprit")
-# print(list(zip(a, b)))
-
-# a, b = align_words("spirit", "espiritu")
-# print(list(zip(a, b)))
-
-
-import pymuscle5
-
-
-def msa_align(words):
-    sequences = [
-        pymuscle5.Sequence(str(i).encode(), w.encode()) for i, w in enumerate(words)
-    ]
-    aligner = pymuscle5.Aligner()
-    msa = aligner.align(sequences)
-    return [seq.sequence.decode() for seq in msa.sequences]
+# progressive alignment
+def align_words_list(word_list):
+    aligned = list(word_list[:2])
+    a1, a2 = align_pair(*aligned)
+    aligned = [a1, a2]
+    for w in word_list[2:]:
+        new_aligned = []
+        for seq in aligned:
+            a_old, a_new = align_pair("".join(seq), w)
+            new_aligned.append(a_old)
+            w = "".join(a_new)
+        aligned = new_aligned + [list(w)]
+    return list(zip(*aligned))
 
 
-aligned = msa_align(["spirit", "esprit", "spirito"])
-for chars in zip(*aligned):
-    print(chars)
+# Output
+for line in align_words_list(["esprit", "spirit", "spirito", "gespenst"]):
+    print(line)
+
+
+def string_barycenter(words):
+    # Align the words first
+    aligned = align_words_list(words)
+    bary = ""
+    for chars in aligned:
+        most_common = Counter(chars).most_common(1)[0][0]
+        if most_common != "-":
+            bary += most_common
+    return bary
+
+
+print(string_barycenter(["hello", "hallo", "hola"]))
+print(string_barycenter(["spirit", "spirito", "esprit", "gespenst"]))
