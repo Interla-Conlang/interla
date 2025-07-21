@@ -40,8 +40,25 @@ def align_words(w1, w2):
     return aligned1, aligned2
 
 
-a, b = align_words("spirit", "esprit")
-print(list(zip(a, b)))
+# a, b = align_words("spirit", "esprit")
+# print(list(zip(a, b)))
 
-a, b = align_words("spirit", "espiritu")
-print(list(zip(a, b)))
+# a, b = align_words("spirit", "espiritu")
+# print(list(zip(a, b)))
+
+
+import pymuscle5
+
+
+def msa_align(words):
+    sequences = [
+        pymuscle5.Sequence(str(i).encode(), w.encode()) for i, w in enumerate(words)
+    ]
+    aligner = pymuscle5.Aligner()
+    msa = aligner.align(sequences)
+    return [seq.sequence.decode() for seq in msa.sequences]
+
+
+aligned = msa_align(["spirit", "esprit", "spirito"])
+for chars in zip(*aligned):
+    print(chars)

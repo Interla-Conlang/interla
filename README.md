@@ -25,8 +25,10 @@
 
 ### Install
 ```bash
+pip install Cython biopython git+https://github.com/althonos/pymuscle5
 pip install -r requirements.txt
 ```
+
 
 ### Choosing edit distance
 **Criterias**
