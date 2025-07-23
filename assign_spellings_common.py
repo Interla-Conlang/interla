@@ -12,7 +12,7 @@ import pickle
 import unicodedata
 from collections import defaultdict
 from functools import partial
-from typing import List, Optional
+from typing import Dict, List, Optional, Set
 
 import epitran
 from epitran.download import cedict
@@ -195,5 +195,15 @@ def step_1(N: Optional[int] = None):
     return int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS
 
 
+def get_all_ipa_from_normWords(all_y2normWord: Dict[str, Dict[str, str]]) -> Set[str]:
+    all_ipa = set()
+    for normWords in all_y2normWord.values():
+        for normWord in normWords.values():
+            all_ipa.update(normWord)
+    return all_ipa
+
+
 if __name__ == "__main__":
-    step_1()
+    int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS = step_1()
+    all_ipa = get_all_ipa_from_normWords(all_y2normWord)
+    print(all_ipa)
