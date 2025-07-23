@@ -82,4 +82,5 @@ if __name__ == "__main__":
 
     words = [ipa_processors[lang].process_str(word) for word, lang in words_with_langs]
     weights = [LANG_WEIGHTS[lang] for _, lang in words_with_langs]
+    print(words)
     print(string_barycenter(words, weights))

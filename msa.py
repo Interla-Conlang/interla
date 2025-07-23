@@ -1,11 +1,19 @@
 from typing import List
 
 import numpy as np
+from numba import njit
 
 
-def pairwise_alignment(s1, s2, gap_penalty=-1, match_score=2, mismatch_penalty=-1):
+@njit(cache=True)
+def pairwise_alignment(
+    s1: str,
+    s2: str,
+    gap_penalty: int = -1,
+    match_score: int = 2,
+    mismatch_penalty: int = -1,
+) -> tuple[str, str]:
     m, n = len(s1), len(s2)
-    dp = np.zeros((m + 1, n + 1), dtype=int)
+    dp = np.zeros((m + 1, n + 1), dtype=np.int64)
     for i in range(m + 1):
         dp[i][0] = i * gap_penalty
     for j in range(n + 1):
@@ -19,7 +27,8 @@ def pairwise_alignment(s1, s2, gap_penalty=-1, match_score=2, mismatch_penalty=-
             insert = dp[i][j - 1] + gap_penalty
             dp[i][j] = max(match, delete, insert)
     # Traceback
-    aligned1, aligned2 = "", ""
+    aligned1: str = ""
+    aligned2: str = ""
     i, j = m, n
     while i > 0 or j > 0:
         if (
@@ -44,14 +53,38 @@ def pairwise_alignment(s1, s2, gap_penalty=-1, match_score=2, mismatch_penalty=-
     return aligned1, aligned2
 
 
-def msa(sequences: List[str], gap_penalty=-1, match_score=2, mismatch_penalty=-1):
+@njit(cache=True)
+def propagate_gaps_to_all(aligned_seqs, aligned_consensus):
+    idx = 0
+    for c in aligned_consensus:
+        if c == "-":
+            for k in range(len(aligned_seqs)):
+                aligned_seqs[k] = aligned_seqs[k][:idx] + "-" + aligned_seqs[k][idx:]
+            idx += 1
+        else:
+            idx += 1
+    return aligned_seqs
+
+
+@njit(cache=True)
+def msa(
+    sequences: List[str],
+    gap_penalty: int = -1,
+    match_score: int = 2,
+    mismatch_penalty: int = -1,
+):
     # Classic progressive alignment for short strings
     aligned = [sequences[0]]
     for seq in sequences[1:]:
         # Align current alignment to new sequence
         # Build a consensus string from current alignment
         consensus = ""
-        for i in range(max(len(s) for s in aligned)):
+        maxlen_consensus = 0
+        for s in aligned:
+            length = len(s)
+            if length > maxlen_consensus:
+                maxlen_consensus = length
+        for i in range(maxlen_consensus):
             chars = [s[i] if i < len(s) else "-" for s in aligned]
             # Most common non-gap char or gap
             filtered = [c for c in chars if c != "-"]
@@ -61,24 +94,14 @@ def msa(sequences: List[str], gap_penalty=-1, match_score=2, mismatch_penalty=-1
             consensus, seq, gap_penalty, match_score, mismatch_penalty
         )
 
-        # Propagate gaps to all aligned sequences
-        def propagate_gaps_to_all(aligned_seqs, aligned_consensus):
-            idx = 0
-            for c in aligned_consensus:
-                if c == "-":
-                    for k in range(len(aligned_seqs)):
-                        aligned_seqs[k] = (
-                            aligned_seqs[k][:idx] + "-" + aligned_seqs[k][idx:]
-                        )
-                    idx += 1
-                else:
-                    idx += 1
-            return aligned_seqs
-
         aligned = propagate_gaps_to_all(aligned, a1)
         aligned.append(a2)
         # Pad all to same length
-        maxlen = max(len(s) for s in aligned)
+        maxlen = 0
+        for i in range(len(aligned)):
+            length = len(aligned[i])
+            if length > maxlen:
+                maxlen = length
         for i in range(len(aligned)):
             aligned[i] += "-" * (maxlen - len(aligned[i]))
     return aligned
