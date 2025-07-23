@@ -19,55 +19,13 @@ from epitran.download import cedict
 from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
 
+from constants import LANG_TO_EPITRAN
 from utils import get_lang_weights
 
 cedict()  # downloads cedict
 
-TO_KEEP = {
-    "en",
-    "zh_cn",
-    # "hi",  # TODO: need transliteration
-    "es",
-    # "ar",  # TODO: need transliteration
-    # "bn",  # TODO: need transliteration
-    "fr",
-    # "ru",  # TODO: need transliteration
-    "pt",
-    # "ur",  # TODO: need transliteration
-    "id",
-    "de",
-    # "ja",  # TODO: need transliteration
-    # "te",  # TODO: need transliteration
-    "tr",
-    # "ta",  # TODO: need transliteration
-    # "ko",  # TODO: need transliteration
-    "vi",
-    "it",
-    # "th",  # TODO: need transliteration
-    "tl",
-    "zh_tw",
-    # "fa",  # TODO: need transliteration
-    "zh_cn",
-}
 
-
-# Language code mapping from your TO_KEEP codes to epitran codes
-LANG_TO_EPITRAN = {
-    "en": "eng-Latn",
-    "zh_cn": "cmn-Hans",
-    "es": "spa-Latn",
-    "fr": "fra-Latn",
-    "pt": "por-Latn",
-    "id": "ind-Latn",
-    "de": "deu-Latn",
-    "tr": "tur-Latn",
-    "vi": "vie-Latn",
-    "it": "ita-Latn",
-    "tl": "tgl-Latn",
-    "zh_tw": "cmn-Hant",
-}
-
-VALID_INT_IPA = set(pd.read_csv("output/alphabet.csv")["IPA"])
+TO_KEEP = set([k for k, v in LANG_TO_EPITRAN.items() if v is not None])
 
 
 def load_ipa_replacement_dict(lang_code: str) -> Dict[str, str]:

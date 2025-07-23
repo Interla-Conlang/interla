@@ -9,9 +9,17 @@ def get_download_url(lang1, lang2):
     return f"https://mk.kakaocdn.net/dn/kakaobrain/word2word/{lang1}-{lang2}.pkl"
 
 
+INVALID_LANGUAGES = {
+    "ze_en"  # Not a valid language (https://linguistics.stackexchange.com/a/35446)
+}
+
+
 def download_pkl(pair, save_dir="data/translations/downloads"):
     lang1, lang2 = pair
     if lang1 != "et" and lang2 != "et":
+        return
+    if lang1 in INVALID_LANGUAGES or lang2 in INVALID_LANGUAGES:
+        print(f"Skipping invalid language pair: {lang1}-{lang2}")
         return
     url = get_download_url(lang1, lang2)
     os.makedirs(save_dir, exist_ok=True)
@@ -32,7 +40,10 @@ def download_pkl(pair, save_dir="data/translations/downloads"):
             else:
                 print(f"Failed to download {url} (status code: {r.status_code})")
                 break
-        except (requests.exceptions.ChunkedEncodingError, requests.exceptions.ConnectionError) as e:
+        except (
+            requests.exceptions.ChunkedEncodingError,
+            requests.exceptions.ConnectionError,
+        ) as e:
             print(f"Download failed (attempt {attempt + 1}/{max_retries}): {e}")
             if attempt == max_retries - 1:
                 print(f"Giving up on {url}")

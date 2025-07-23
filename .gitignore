@@ -4,3 +4,4 @@ data/translations/downloads
 .venv
 __pycache__
 TODO.md
+.vscode/launch.json
