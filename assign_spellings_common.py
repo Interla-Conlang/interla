@@ -10,7 +10,7 @@ import glob
 import os
 import pickle
 import unicodedata
-from collections import defaultdict
+from collections import Counter, defaultdict
 from functools import partial
 from typing import Dict, List, Optional, Set
 
@@ -195,15 +195,20 @@ def step_1(N: Optional[int] = None):
     return int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS
 
 
-def get_all_ipa_from_normWords(all_y2normWord: Dict[str, Dict[str, str]]) -> Set[str]:
-    all_ipa = set()
+def get_all_ipa_from_normWords(all_y2normWord: Dict[str, Dict[str, str]]) -> Counter:
+    all_ipa = Counter()
     for normWords in all_y2normWord.values():
         for normWord in normWords.values():
-            all_ipa.update(normWord)
+            for letter in normWord:
+                if letter not in {"-", " "}:
+                    all_ipa[letter] += 1
     return all_ipa
 
 
 if __name__ == "__main__":
     int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS = step_1()
     all_ipa = get_all_ipa_from_normWords(all_y2normWord)
-    print(all_ipa)
+    # Show the most common IPA characters
+    print("Most common IPA characters:")
+    for ipa, count in all_ipa.most_common(300):
+        print(f"{ipa}: {count}")
