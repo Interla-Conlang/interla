@@ -219,7 +219,7 @@ def step_1(
     Raises:
         FileNotFoundError: If required data files are not found
     """
-    logger.info("Starting step_1 data processing")
+    logger.debug("Starting step_1 data processing")
     # FIXME: ~30s long
 
     # 1. Load all pkl files from data/translations/downloads/xx-yy.pkl if yy is "et"
@@ -232,57 +232,88 @@ def step_1(
         if os.path.basename(f).startswith("et-")
         and os.path.basename(f).split("-")[1].split(".")[0] in TO_KEEP
     ]
+    logger.debug(f"Found {len(et_pkls)} Estonian translation files to process")
 
     # TODO: ALSO USE os.path.basename(f)[:2] == "et"
 
+    logger.debug("Loading language weights")
     _, LANG_WEIGHTS = get_lang_weights()
     min_weight = min(LANG_WEIGHTS.values())
     LANG_WEIGHTS = defaultdict(lambda: min_weight, LANG_WEIGHTS)
+    logger.debug(f"Loaded weights for {len(LANG_WEIGHTS)} languages")
 
-    int_anon_tokens_coocurrences = dict()  # 156: {"fi": [159, 8], "sv": [2, 8]}
-    all_y2normWord = dict()  # To collect all y2word mappings
-    all_y2word = dict()  # To collect all y2word mappings
-    all_word2x = dict()  # To collect all word2x mappings
+    logger.debug("Initializing data structures")
+    int_anon_tokens_coocurrences: Dict[
+        int, Dict[str, int]
+    ] = {}  # 156: {"fi": [159, 8], "sv": [2, 8]}
+    all_y2normWord: Dict[str, Dict[int, str]] = {}  # To collect all y2word mappings
+    all_y2word: Dict[str, Dict[int, str]] = {}  # To collect all y2word mappings
+    all_word2x: Dict[str, int] = {}  # To collect all word2x mappings
 
     for fpath in et_pkls:
         lang2 = (
             os.path.basename(fpath).split("-")[1].split(".")[0]
         )  # e.g. "fi" from "et-fi.pkl"
+        logger.debug(f"Processing language: {lang2}")
 
-        with open(fpath, "rb") as f:
-            word2x, y2word, x2ys = pickle.load(f)
-            x2word = {
-                v: k for k, v in word2x.items()
-            }  # Reverse mapping: id -> word in lang1
-            # word2x is a dict: word -> id in lang1
-            # y2word is a dict: id -> word in lang2
-            # x2ys is a dict: id in lang1 -> list of ids in lang2
+        try:
+            with open(fpath, "rb") as f:
+                word2x, y2word, x2ys = pickle.load(f)
+                x2word = {
+                    v: k for k, v in word2x.items()
+                }  # Reverse mapping: id -> word in lang1
+                # word2x is a dict: word -> id in lang1
+                # y2word is a dict: id -> word in lang2
+                # x2ys is a dict: id in lang1 -> list of ids in lang2
+            logger.debug(f"Loaded {len(y2word)} words for {lang2}")
+        except Exception as e:
+            logger.error(f"Failed to load pickle file {fpath}: {e}")
+            continue
 
         # Check if output/step1.pkl exists
         output_path = f"output/ipa/{lang2}.pkl"
         if os.path.exists(output_path):
-            with open(output_path, "rb") as f:
-                y2normWord = pickle.load(f)
+            logger.debug(f"Loading cached IPA data for {lang2}")
+            try:
+                with open(output_path, "rb") as f:
+                    y2normWord = pickle.load(f)
+                logger.debug(f"Loaded {len(y2normWord)} cached IPA words for {lang2}")
+            except Exception as e:
+                logger.error(f"Failed to load cached IPA data for {lang2}: {e}")
+                continue
         else:
-            ipa_processor = IPAProcessor(lang2)
-            if lang2 in {"en"}:
-                # Use thread_map for parallel processing
-                keys = list(y2word.keys())
-                values = list(y2word.values())
-                norm_values = thread_map(
-                    ipa_processor.process_str, values, desc=f"Processing {lang2} words"
-                )
-                y2normWord = dict(zip(keys, norm_values))
-            else:
-                y2normWord = {
-                    k: ipa_processor.process_str(v)
-                    for k, v in tqdm(y2word.items(), desc=f"Processing {lang2} words")
-                }
+            logger.debug(f"Processing IPA conversion for {lang2}")
+            try:
+                ipa_processor = IPAProcessor(lang2)
+                if lang2 in {"en"}:
+                    # Use thread_map for parallel processing
+                    logger.debug(f"Using parallel processing for {lang2}")
+                    keys = list(y2word.keys())
+                    values = list(y2word.values())
+                    norm_values = thread_map(
+                        ipa_processor.process_str,
+                        values,
+                        desc=f"Processing {lang2} words",
+                    )
+                    y2normWord = dict(zip(keys, norm_values))
+                else:
+                    y2normWord = {
+                        k: ipa_processor.process_str(v)
+                        for k, v in tqdm(
+                            y2word.items(), desc=f"Processing {lang2} words"
+                        )
+                    }
 
-            # Save the processed y2normWord to a pickle file
-            print(f"Saving {lang2} IPA words to {output_path}")
-            with open(output_path, "wb") as f:
-                pickle.dump(y2normWord, f)
+                # Save the processed y2normWord to a pickle file
+                logger.debug(f"Saving {lang2} IPA words to {output_path}")
+                with open(output_path, "wb") as f:
+                    pickle.dump(y2normWord, f)
+                logger.debug(
+                    f"Successfully saved {len(y2normWord)} IPA words for {lang2}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to process IPA for {lang2}: {e}")
+                continue
 
         all_y2normWord[lang2] = y2normWord  # Collect all y2word mappings
         all_y2word[lang2] = y2word
@@ -292,34 +323,58 @@ def step_1(
         for x_id, ys in records:  # Limit to N to match interla tokens
             # reindex x_id
             word = x2word.get(x_id)
+            if word is None:
+                logger.warning(f"No word found for x_id {x_id} in {lang2}")
+                continue
+
             if word in all_word2x:
                 new_x_id = all_word2x[word]
             else:
                 new_x_id = len(all_word2x)
                 all_word2x[word] = new_x_id
 
-            int_anon_tokens_coocurrences.setdefault(new_x_id, dict())
+            int_anon_tokens_coocurrences.setdefault(new_x_id, {})
             # int_anon_tokens_coocurrences[x_id][lang2] = ys[:3]
             int_anon_tokens_coocurrences[new_x_id][lang2] = ys[0]
 
-    print(len(int_anon_tokens_coocurrences), "interla anonymous tokens")
     return int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS
 
 
 def get_all_ipa_from_normWords(all_y2normWord: Dict[str, Dict[int, str]]) -> Counter:
+    """
+    Extract all IPA characters from normalized words across all languages.
+
+    Args:
+        all_y2normWord: Mapping of language to word ID to normalized word
+
+    Returns:
+        Counter of IPA characters with their frequencies
+    """
+    logger.debug("Extracting IPA characters from normalized words")
     all_ipa = Counter()
+
     for normWords in all_y2normWord.values():
         for normWord in normWords.values():
             for letter in normWord:
                 if letter not in {"-", " "}:
                     all_ipa[letter] += 1
+
     return all_ipa
 
 
+def main() -> None:
+    try:
+        _, all_y2normWord, all_y2word, LANG_WEIGHTS = step_1()
+        all_ipa = get_all_ipa_from_normWords(all_y2normWord)
+
+        # Show the most common IPA characters
+        logger.debug("Most common IPA characters:")
+        for ipa, count in all_ipa.most_common(300):
+            print(f"{ipa}: {count}")
+    except Exception as e:
+        logger.critical(f"Critical error in main function: {e}")
+        raise
+
+
 if __name__ == "__main__":
-    int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS = step_1()
-    all_ipa = get_all_ipa_from_normWords(all_y2normWord)
-    # Show the most common IPA characters
-    print("Most common IPA characters:")
-    for ipa, count in all_ipa.most_common(300):
-        print(f"{ipa}: {count}")
+    main()

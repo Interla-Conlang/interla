@@ -28,7 +28,7 @@ ALL_VALID_LANGUAGES = [
     for f in pkl_files
     if os.path.basename(f).startswith("et-")
 ]
-logger.info(
+logger.debug(
     f"Found {len(ALL_VALID_LANGUAGES)} valid languages: {sorted(ALL_VALID_LANGUAGES)}"
 )
 
@@ -119,18 +119,18 @@ def get_lang_weights() -> Tuple[pd.DataFrame, Dict[str, float]]:
         logger.error(f"Weights sum to {weight_sum}, expected ~1.0")
         raise AssertionError("Weights should sum to 1")
 
-    logger.info(f"Successfully calculated weights for {len(weights)} languages")
+    logger.debug(f"Successfully calculated weights for {len(weights)} languages")
     return languages, weights
 
 
 def main() -> None:
     """Main function for testing the utilities."""
-    logger.info("Running utils.py main function")
+    logger.debug("Running utils.py main function")
     try:
         languages, weights = get_lang_weights()
-        logger.info("Languages and their weights:")
+        logger.debug("Languages and their weights:")
         print(languages[["Language", "weight"]])
-        logger.info("Weights dictionary:")
+        logger.debug("Weights dictionary:")
         print(weights)
     except Exception as e:
         logger.error(f"Error in main function: {e}")

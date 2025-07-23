@@ -29,7 +29,7 @@ def viz_vocab() -> None:
     Raises:
         FileNotFoundError: If the Interla vocabulary file is not found
     """
-    logger.info("Starting vocabulary visualization")
+    logger.debug("Starting vocabulary visualization")
 
     logger.debug("Loading data from step_1")
     int_anon_tokens_coocurrences, all_y2normWord, all_y2word, _ = step_1()
@@ -54,7 +54,7 @@ def viz_vocab() -> None:
     try:
         with open(interla_vocab_path, "rb") as f:
             vocab: Dict[str, int] = pickle.load(f)
-        logger.info(f"Loaded vocabulary with {len(vocab)} entries")
+        logger.debug(f"Loaded vocabulary with {len(vocab)} entries")
     except Exception as e:
         logger.error(f"Failed to load vocabulary from {interla_vocab_path}: {e}")
         return
@@ -79,9 +79,7 @@ def viz_vocab() -> None:
             ]
 
             # Display word information
-            for word, normWord, ipa, (lang, _) in zip(
-                words, normWords, ipas, items
-            ):
+            for word, normWord, ipa, (lang, _) in zip(words, normWords, ipas, items):
                 print(f"  {lang}:\t\t{word}\t\t/{ipa}/\t\t({normWord})")
 
             # Display alignment
@@ -91,13 +89,12 @@ def viz_vocab() -> None:
             input()  # Wait for user input before showing next entry
 
 
-
 def main() -> None:
     """Main function for running vocabulary visualization."""
     try:
         viz_vocab()
     except KeyboardInterrupt:
-        logger.info("Vocabulary visualization interrupted by user")
+        logger.debug("Vocabulary visualization interrupted by user")
 
 
 if __name__ == "__main__":
