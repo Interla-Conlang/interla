@@ -147,26 +147,14 @@ def step_1(N: Optional[int] = None):
             # y2word is a dict: id -> word in lang2
             # x2ys is a dict: id in lang1 -> list of ids in lang2
 
+        ipa_processor = IPAProcessor(lang2)
         if lang2 in {"en"}:
-            n_workers = 11
-            items = list(y2word.items())
-            ks = [i[0] for i in items]  # Get the keys (ids in lang2)
-            vs = [i[1] for i in items]  # Get the values (words in lang2)
-            chunks = [
-                vs[i : i + n_workers] for i in range(0, len(vs), n_workers)
-            ]  # Split into chunks for parallel processing
-            results = process_map(
-                partial(process_chunk, lang2),
-                chunks,
-                desc=f"Processing {lang2} words",
-                max_workers=n_workers,
-            )
-            # results is a list of list
-            y2normWord = dict(
-                zip(ks, [item for sublist in results for item in sublist])
-            )
+            # Use thread_map for parallel processing
+            keys = list(y2word.keys())
+            values = list(y2word.values())
+            norm_values = thread_map(ipa_processor.process_str, values, desc=f"Processing {lang2} words")
+            y2normWord = dict(zip(keys, norm_values))
         else:
-            ipa_processor = IPAProcessor(lang2)
             y2normWord = {
                 k: ipa_processor.process_str(v)
                 for k, v in tqdm(y2word.items(), desc=f"Processing {lang2} words")
