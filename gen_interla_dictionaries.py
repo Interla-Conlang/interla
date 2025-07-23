@@ -11,6 +11,7 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches
 from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
 
 from assign_spellings_common import step_1
 from logging_config import logger
@@ -138,7 +139,7 @@ def create_dictionary_docx(
         doc.add_paragraph("No entries found.")
 
     # Save the document
-    filename = f"output/dictionary_interla_{language_code}.docx"
+    filename = f"output/dictionaries/dictionary_interla_{language_code}.docx"
     doc.save(filename)
     logger.info(f"Dictionary saved as {filename}")
 
@@ -189,15 +190,29 @@ def gen_single_dictionary(language_code: str) -> None:
         logger.warning(f"No entries found for language: {language_code}")
 
 
-def gen_dictionaries() -> None:
-    """Generate DOCX dictionaries for all languages."""
-    logger.info("Starting dictionary generation...")
+def create_dictionary_worker(args: Tuple[Dict[str, str], Dict[str, str], str]) -> str:
+    """Worker function to create a dictionary DOCX file for parallel processing."""
+    lang_to_interla, interla_to_lang, dict_lang = args
 
-    # Load data
+    try:
+        if lang_to_interla:
+            create_dictionary_docx(lang_to_interla, interla_to_lang, dict_lang)
+            return f"Successfully created dictionary for {dict_lang} with {len(lang_to_interla)} entries"
+        else:
+            return f"Warning: No entries found for language {dict_lang}"
+
+    except Exception as e:
+        return f"Error creating dictionary for {dict_lang}: {str(e)}"
+
+
+def gen_dictionaries() -> None:
+    """Generate DOCX dictionaries for all languages using parallel processing."""
+    logger.info("Starting dictionary generation with parallel processing...")
+
+    # Load data once in the main process
     int_anon_tokens_cooccurrences, _, all_y2word, _ = step_1()
 
     interla_vocab_path = "output/interla_vocab.pkl"
-
     if not os.path.exists(interla_vocab_path):
         logger.error(f"Interla vocabulary file not found at {interla_vocab_path}")
         return
@@ -205,17 +220,21 @@ def gen_dictionaries() -> None:
     with open(interla_vocab_path, "rb") as f:
         vocab: Dict[str, int] = pickle.load(f)
 
-    # Process each language
-    for dict_lang in ALL_VALID_LANGUAGES:
+    # Prepare dictionary data for all languages
+    logger.info("Preparing dictionary data for all languages...")
+    dictionary_args = []
+
+    for dict_lang in tqdm(ALL_VALID_LANGUAGES, desc="Preparing data"):
         # Build dictionaries for this language
         lang_to_interla = {}  # Original language -> Interla
         interla_to_lang = {}  # Interla -> Original language
 
+        if dict_lang not in all_y2word:
+            logger.warning(f"Language {dict_lang} not found in available languages")
+            continue
         y2word = all_y2word[dict_lang]
 
-        for int_orth_token, int_anon_token in tqdm(
-            vocab.items(), desc=f"Collecting data for {dict_lang} dictionary"
-        ):
+        for int_orth_token, int_anon_token in vocab.items():
             assoc_words = int_anon_tokens_cooccurrences.get(int_anon_token, {})
             if dict_lang in assoc_words:
                 y_id = assoc_words[dict_lang]
@@ -226,10 +245,24 @@ def gen_dictionaries() -> None:
                 lang_to_interla[word] = int_orth_token
                 interla_to_lang[int_orth_token] = word
 
-        if lang_to_interla:
-            create_dictionary_docx(lang_to_interla, interla_to_lang, dict_lang)
+        # Add to arguments list for parallel processing
+        dictionary_args.append((lang_to_interla, interla_to_lang, dict_lang))
+
+    results = process_map(
+        create_dictionary_worker,
+        dictionary_args,
+        max_workers=10,
+        desc="Creating DOCX files",
+    )
+
+    # Log results
+    for result in results:
+        if result.startswith("Successfully"):
+            logger.info(result)
+        elif result.startswith("Warning"):
+            logger.warning(result)
         else:
-            logger.warning(f"No entries found for language: {dict_lang}")
+            logger.error(result)
 
     logger.info("Dictionary generation completed!")
 
