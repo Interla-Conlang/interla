@@ -1,5 +1,11 @@
+"""
+Constants
+"""
+
+from typing import Dict, Optional
+
 # Language code mapping from your TO_KEEP codes to epitran codes
-LANG_TO_EPITRAN = {
+LANG_TO_EPITRAN: Dict[str, Optional[str]] = {
     "ja": "jpn-Hrgn",  # Japanese (Hiragana)
     "es": "spa-Latn",  # Spanish
     "de": "deu-Latn",  # German

@@ -1,4 +1,9 @@
 """
+Common code for assigning spellings.
+
+This module provides common functionalities for processing and assigning spellings
+to words (barycenter or other methods).
+
 Abbreviations:
 - et: Estonian
 - int: Interla
@@ -11,7 +16,7 @@ import os
 import pickle
 import unicodedata
 from collections import Counter, defaultdict
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import epitran
 import pandas as pd
@@ -20,83 +25,206 @@ from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
 
 from constants import LANG_TO_EPITRAN
+from logging_config import logger
 from utils import get_lang_weights
 
+logger.debug("Downloading cedict data")
 cedict()  # downloads cedict
 
-
 TO_KEEP = set([k for k, v in LANG_TO_EPITRAN.items() if v is not None])
+logger.debug(f"Languages to keep: {len(TO_KEEP)} languages")
 
 
 def load_ipa_replacement_dict(lang_code: str) -> Dict[str, str]:
     """
     Load the IPA replacement dictionary for a given language code.
-    The dictionary maps characters to their IPA equivalents.
+
+    The dictionary maps characters to their IPA equivalents. Currently ignores
+    the language code and uses a universal replacement mapping.
+
+    Args:
+        lang_code: Language code (currently unused but kept for future extension)
+
+    Returns:
+        Dictionary mapping source IPA characters to target IPA characters
+
+    Raises:
+        FileNotFoundError: If closest_phonems.csv is not found
     """
+    logger.debug(f"Loading IPA replacement dictionary for language: {lang_code}")
     _ = lang_code  # TODO: for the moment, we ignore the language code
+
     df = pd.read_csv("data/closest_phonems.csv")
+    logger.debug(f"Loaded {len(df)} IPA replacement mappings")
+
     # Only keep rows where lang is "*" or matches lang_code (for future extension)
     replacements = dict(zip(df["source_ipa"], df["target_ipa"]))
+    logger.debug(f"Created {len(replacements)} IPA replacement mappings")
     return replacements
 
 
 class IPAProcessor:
     """
     A processor that converts strings to IPA using epitran for a specific language.
-    Initialize once per language and reuse for efficient processing.
+
+    This class provides efficient IPA processing by initializing epitran once per
+    language and reusing it for multiple string conversions.
+
+    Attributes:
+        lang_code: The language code for this processor
+        epitran_code: The epitran language code
+        epitran_obj: The epitran processor instance
+        ipa_replace: Function to replace IPA characters
     """
 
-    def __init__(self, lang_code: str, replace: bool = True):
+    def __init__(self, lang_code: str, replace: bool = True) -> None:
+        """
+        Initialize the IPA processor for a specific language.
+
+        Args:
+            lang_code: Language code (e.g., 'en', 'fr', 'de')
+            replace: Whether to apply IPA character replacements
+
+        Raises:
+            KeyError: If lang_code is not found in LANG_TO_EPITRAN
+            ValueError: If epitran_code is None for the given language
+        """
         self.lang_code = lang_code
+        logger.debug(f"Initializing IPA processor for language: {lang_code}")
+
+        if lang_code not in LANG_TO_EPITRAN:
+            logger.error(f"Language code {lang_code} not found in LANG_TO_EPITRAN")
+            raise KeyError(f"Language code {lang_code} not supported")
+
         self.epitran_code = LANG_TO_EPITRAN[lang_code]
-        self.epitran_obj = epitran.Epitran(self.epitran_code)
+        if self.epitran_code is None:
+            logger.error(f"No epitran code available for language {lang_code}")
+            raise ValueError(f"No epitran support for language {lang_code}")
+
+        try:
+            self.epitran_obj = epitran.Epitran(self.epitran_code)
+            logger.debug(f"Successfully initialized epitran for {self.epitran_code}")
+        except Exception as e:
+            logger.error(f"Failed to initialize epitran for {self.epitran_code}: {e}")
+            raise
 
         if replace:
+            logger.debug("Loading IPA replacement dictionary")
             replacement_dict = load_ipa_replacement_dict(lang_code)
             self.ipa_replace = lambda c: replacement_dict.get(c, "")
         else:
+            logger.debug("No IPA replacement will be applied")
             self.ipa_replace = lambda c: c  # No replacement, keep original IPA
 
-    def process_str(self, s):
+    def process_str(self, s: str) -> str:
         """
         Convert a string to IPA using epitran.
+
+        Args:
+            s: Input string to convert to IPA
+
+        Returns:
+            IPA transcription of the input string
         """
         if not s:
+            logger.debug("Empty string provided, returning as-is")
             return s
 
-        raw_ipa = self.epitran_obj.transliterate(s.lower())
+        try:
+            raw_ipa = self.epitran_obj.transliterate(s.lower())
+            logger.debug(f"Raw IPA for '{s}': {raw_ipa}")
 
-        # Filter out invalid IPA characters
-        filtered_ipa = "".join(self.ipa_replace(char) for char in raw_ipa)
+            # Filter out invalid IPA characters
+            filtered_ipa = "".join(self.ipa_replace(char) for char in raw_ipa)
+            logger.debug(f"Filtered IPA: {filtered_ipa}")
 
-        return filtered_ipa
+            return filtered_ipa
+        except Exception as e:
+            logger.warning(f"Failed to process string '{s}': {e}")
+            return ""
 
 
-def process_str(s):
+def process_str(s: str) -> str:
     """
     Process a string for string comparison.
-    - lowercase it
-    - replace special characters (e.g. accents) with their ASCII equivalents
+
+    This function normalizes strings by:
+    - Converting to lowercase
+    - Replacing special characters (e.g. accents) with their ASCII equivalents
+    - Removing combining characters
+
+    Args:
+        s: Input string to process
+
+    Returns:
+        Normalized string
     """
+    logger.debug(f"Processing string: '{s}'")
     s = s.lower()
     s = unicodedata.normalize("NFKD", s)
     s = "".join(c for c in s if not unicodedata.combining(c))
+    logger.debug(f"Processed result: '{s}'")
     return s
 
 
-def process_chunk(lang2, chunk: List[str]) -> List[str]:
+def process_chunk(lang2: str, chunk: List[str]) -> List[str]:
+    """
+    Process a chunk of words for a specific language using IPA conversion.
+
+    Args:
+        lang2: Language code for the chunk
+        chunk: List of words to process
+
+    Returns:
+        List of IPA-processed words
+    """
+    logger.debug(f"Processing chunk of {len(chunk)} words for language {lang2}")
     ipa_processor = IPAProcessor(lang2)
-    return [ipa_processor.process_str(word) for word in chunk]
+    results = [ipa_processor.process_str(word) for word in chunk]
+    logger.debug(f"Successfully processed {len(results)} words")
+    return results
 
 
+# Ensure output directory exists
 os.makedirs("output/ipa", exist_ok=True)
 
 
-def step_1(N: Optional[int] = None):
+def step_1(
+    N: Optional[int] = None,
+) -> Tuple[
+    Dict[int, Dict[str, int]],
+    Dict[str, Dict[int, str]],
+    Dict[str, Dict[int, str]],
+    Dict[str, float],
+]:
+    """
+    Load and process translation data from pickle files.
+
+    This function performs the first step of the pipeline by:
+    1. Loading translation pickle files
+    2. Processing words through IPA conversion
+    3. Building cooccurrence mappings
+    4. Caching processed results
+
+    Args:
+        N: Optional limit on number of records to process per language
+
+    Returns:
+        Tuple containing:
+            - int_anon_tokens_coocurrences: Mapping of token IDs to language-word associations
+            - all_y2normWord: Mapping of language to word ID to normalized word
+            - all_y2word: Mapping of language to word ID to original word
+            - LANG_WEIGHTS: Language weights dictionary
+
+    Raises:
+        FileNotFoundError: If required data files are not found
+    """
+    logger.info("Starting step_1 data processing")
     # FIXME: ~30s long
 
     # 1. Load all pkl files from data/translations/downloads/xx-yy.pkl if yy is "et"
     pkl_dir = "data/translations/downloads"
+    logger.debug(f"Scanning for pickle files in {pkl_dir}")
     pkl_files = glob.glob(os.path.join(pkl_dir, "*.pkl"))
     et_pkls = [
         f
@@ -178,7 +306,7 @@ def step_1(N: Optional[int] = None):
     return int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS
 
 
-def get_all_ipa_from_normWords(all_y2normWord: Dict[str, Dict[str, str]]) -> Counter:
+def get_all_ipa_from_normWords(all_y2normWord: Dict[str, Dict[int, str]]) -> Counter:
     all_ipa = Counter()
     for normWords in all_y2normWord.values():
         for normWord in normWords.values():
