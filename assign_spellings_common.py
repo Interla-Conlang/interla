@@ -71,39 +71,17 @@ class IPAProcessor:
 
     def __init__(self, lang_code):
         self.lang_code = lang_code
-        self.epitran_code = LANG_TO_EPITRAN.get(lang_code)
-        self.epitran_obj = None
-
-        if self.epitran_code:
-            try:
-                self.epitran_obj = epitran.Epitran(self.epitran_code)
-            except Exception as e:
-                print(
-                    f"Warning: Could not initialize epitran for {self.epitran_code}: {e}"
-                )
-                self.epitran_obj = None
+        self.epitran_code = LANG_TO_EPITRAN[lang_code]
+        self.epitran_obj = epitran.Epitran(self.epitran_code)
 
     def process_str(self, s):
         """
-        Convert a string to IPA using epitran for this processor's language.
-        Falls back to basic normalization if epitran is not available.
+        Convert a string to IPA using epitran.
         """
         if not s:
             return s
 
-        if self.epitran_obj:
-            try:
-                return self.epitran_obj.transliterate(s.lower())
-            except Exception as e:
-                print(
-                    f"Warning: Could not transliterate '{s}' for {self.lang_code}: {e}"
-                )
-
-        # Fallback to original normalization
-        s = s.lower()
-        s = unicodedata.normalize("NFKD", s)
-        s = "".join(c for c in s if not unicodedata.combining(c))
-        return s
+        return self.epitran_obj.transliterate(s.lower())
 
 
 def process_str(s):
@@ -116,6 +94,7 @@ def process_str(s):
     s = unicodedata.normalize("NFKD", s)
     s = "".join(c for c in s if not unicodedata.combining(c))
     return s
+
 
 def step_1(N: Optional[int] = None):
     # Check if output/step1.pkl exists
@@ -132,7 +111,8 @@ def step_1(N: Optional[int] = None):
     et_pkls = [
         f
         for f in pkl_files
-        if os.path.basename(f)[:2] == "et" and os.path.basename(f)[-6:-4] in TO_KEEP
+        if os.path.basename(f).startswith("et-")
+        and os.path.basename(f).split("-")[1].split(".")[0] in TO_KEEP
     ]
 
     # TODO: ALSO USE os.path.basename(f)[:2] == "et"
@@ -147,7 +127,9 @@ def step_1(N: Optional[int] = None):
     all_word2x = dict()  # To collect all word2x mappings
 
     for fpath in tqdm(et_pkls):
-        lang2 = os.path.basename(fpath)[-6:-4]  # e.g. "fi" from "et-fi.pkl"
+        lang2 = (
+            os.path.basename(fpath).split("-")[1].split(".")[0]
+        )  # e.g. "fi" from "et-fi.pkl"
         ipa_processor = IPAProcessor(lang2)
 
         with open(fpath, "rb") as f:
@@ -159,7 +141,10 @@ def step_1(N: Optional[int] = None):
             # y2word is a dict: id -> word in lang2
             # x2ys is a dict: id in lang1 -> list of ids in lang2
 
-        y2normWord = {k: ipa_processor.process_str(v) for k, v in tqdm(y2word.items(), desc=f"Processing {lang2} words")}
+        y2normWord = {
+            k: ipa_processor.process_str(v)
+            for k, v in tqdm(y2word.items(), desc=f"Processing {lang2} words")
+        }
         all_y2normWord[lang2] = y2normWord  # Collect all y2word mappings
         all_y2word[lang2] = y2word
 
@@ -183,6 +168,8 @@ def step_1(N: Optional[int] = None):
     # Save result to output/step1.pkl
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "wb") as f:
-        pickle.dump((int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS), f)
+        pickle.dump(
+            (int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS), f
+        )
 
     return int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS
