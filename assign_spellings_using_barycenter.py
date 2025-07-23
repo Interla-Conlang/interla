@@ -1,7 +1,7 @@
 import os
 import pickle
 
-from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
 
 from assign_spellings_common import step_1
 from str_barycenter import string_barycenter
@@ -16,9 +16,8 @@ if os.path.exists(interla_vocab_path):
 else:
     vocab = {}
 
-    for int_anon_token, assoc_words in tqdm(
-        int_anon_tokens_coocurrences.items(), desc="Finding optimal interla tokens"
-    ):
+    def compute_token(args):
+        int_anon_token, assoc_words = args
         words = [
             all_y2normWord[lang].get(w_id, "") for lang, w_id in assoc_words.items()
         ]
@@ -27,11 +26,17 @@ else:
             int_orth_token = words[0]
         else:
             int_orth_token = string_barycenter(words, weights)
+        return int_orth_token, int_anon_token
 
+    results = process_map(
+        compute_token,
+        list(int_anon_tokens_coocurrences.items()),
+        desc="Finding optimal interla tokens",
+    )
+    for int_orth_token, int_anon_token in results:
         vocab[int_orth_token] = int_anon_token
 
     # Save the vocabulary to a pickle file
-
     with open(interla_vocab_path, "wb") as f:
         pickle.dump(vocab, f)
 
