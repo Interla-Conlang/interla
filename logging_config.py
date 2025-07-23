@@ -11,7 +11,7 @@ from typing import Optional
 
 
 def setup_logging(
-    level: int = logging.DEBUG,
+    level: int = logging.INFO,
     format_string: Optional[str] = None,
     log_file: Optional[str] = None,
 ) -> logging.Logger:
@@ -27,7 +27,7 @@ def setup_logging(
         Configured logger instance
     """
     if format_string is None:
-        format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        format_string = "%(levelname)s: %(message)s"
 
     # Configure root logger
     logger = logging.getLogger()
