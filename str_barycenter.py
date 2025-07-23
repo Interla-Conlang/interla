@@ -44,43 +44,51 @@ if __name__ == "__main__":
     from utils import get_lang_weights
 
     _, LANG_WEIGHTS = get_lang_weights()
-    # words = [
-    #     ipa_processor.process_str(s)
-    #     for s, lang in [
-    #         ("lista", "es"),
-    #         ("Liste", "de"),
-    #         ("list", "en"),
-    #         ("lista", "it"),
-    #         ("cả_thảy", "vi"),
-    #         ("Blacklist", "id"),
-    #         ("Listede", "tr"),
-    #         ("liste", "fr"),
-    #         ("lista", "pt"),
-    #     ]
-    # ]
-    # weights = [
-    #     LANG_WEIGHTS[lang]
-    #     for lang in ["es", "de", "en", "it", "vi", "id", "tr", "fr", "pt"]
+    # words_with_langs = [
+    #     ("lista", "es"),
+    #     ("Liste", "de"),
+    #     ("list", "en"),
+    #     ("lista", "it"),
+    #     ("cả_thảy", "vi"),
+    #     ("Blacklist", "id"),
+    #     ("Listede", "tr"),
+    #     ("liste", "fr"),
+    #     ("lista", "pt"),
     # ]
 
-    # Using IPA conversion for each word with its corresponding language
-    words_with_langs = [
-        ("noir", "fr"),
-        ("black", "en"),
-        ("schwarz", "de"),
-        ("negro", "es"),
-        ("nero", "it"),
-        ("đen", "vi"),
-        ("hitam", "id"),
-        ("siyah", "tr"),
-        ("preto", "pt"),
-    ]
+    # words_with_langs = [
+    #     ("noir", "fr"),
+    #     ("black", "en"),
+    #     ("schwarz", "de"),
+    #     ("negro", "es"),
+    #     ("nero", "it"),
+    #     ("đen", "vi"),
+    #     ("hitam", "id"),
+    #     ("siyah", "tr"),
+    #     ("preto", "pt"),
+    # ]
+
+    words_with_langs = (
+        [
+            ("Black", "it"),
+            ("Sirius", "vi"),
+            ("Sirius", "id"),
+            ("Sirius", "tr"),
+            ("天狼星", "zh_tw"),
+            ("Sirius", "pt"),
+        ]
+    )
 
     # Create IPA processors for each unique language
     unique_langs = list(set(lang for _, lang in words_with_langs))
-    ipa_processors = {lang: IPAProcessor(lang) for lang in unique_langs}
+    weights = [LANG_WEIGHTS[lang] for _, lang in words_with_langs]
+
+    ipa_processors = {lang: IPAProcessor(lang, replace=False) for lang in unique_langs}
 
     words = [ipa_processors[lang].process_str(word) for word, lang in words_with_langs]
-    weights = [LANG_WEIGHTS[lang] for _, lang in words_with_langs]
-    print(words)
+    print("IPA converted words:", words)
+
+    ipa_processors = {lang: IPAProcessor(lang, replace=True) for lang in unique_langs}
+    words = [ipa_processors[lang].process_str(word) for word, lang in words_with_langs]
+    print("Words used in barycenter:", words)
     print(string_barycenter(words, weights))

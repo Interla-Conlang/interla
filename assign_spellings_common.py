@@ -11,13 +11,13 @@ import os
 import pickle
 import unicodedata
 from collections import Counter, defaultdict
-from functools import partial
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional
 
 import epitran
+import pandas as pd
 from epitran.download import cedict
 from tqdm import tqdm
-from tqdm.contrib.concurrent import process_map, thread_map
+from tqdm.contrib.concurrent import thread_map
 
 from utils import get_lang_weights
 
@@ -67,6 +67,20 @@ LANG_TO_EPITRAN = {
     "zh_tw": "cmn-Hant",
 }
 
+VALID_INT_IPA = set(pd.read_csv("output/alphabet.csv")["IPA"])
+
+
+def load_ipa_replacement_dict(lang_code: str) -> Dict[str, str]:
+    """
+    Load the IPA replacement dictionary for a given language code.
+    The dictionary maps characters to their IPA equivalents.
+    """
+    _ = lang_code  # TODO: for the moment, we ignore the language code
+    df = pd.read_csv("data/closest_phonems.csv")
+    # Only keep rows where lang is "*" or matches lang_code (for future extension)
+    replacements = dict(zip(df["source_ipa"], df["target_ipa"]))
+    return replacements
+
 
 class IPAProcessor:
     """
@@ -74,10 +88,16 @@ class IPAProcessor:
     Initialize once per language and reuse for efficient processing.
     """
 
-    def __init__(self, lang_code):
+    def __init__(self, lang_code: str, replace: bool = True):
         self.lang_code = lang_code
         self.epitran_code = LANG_TO_EPITRAN[lang_code]
         self.epitran_obj = epitran.Epitran(self.epitran_code)
+
+        if replace:
+            replacement_dict = load_ipa_replacement_dict(lang_code)
+            self.ipa_replace = lambda c: replacement_dict.get(c, "")
+        else:
+            self.ipa_replace = lambda c: c  # No replacement, keep original IPA
 
     def process_str(self, s):
         """
@@ -86,7 +106,12 @@ class IPAProcessor:
         if not s:
             return s
 
-        return self.epitran_obj.transliterate(s.lower())
+        raw_ipa = self.epitran_obj.transliterate(s.lower())
+
+        # Filter out invalid IPA characters
+        filtered_ipa = "".join(self.ipa_replace(char) for char in raw_ipa)
+
+        return filtered_ipa
 
 
 def process_str(s):
