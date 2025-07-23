@@ -3,3 +3,4 @@ odfpy
 pythainlp
 levenshtein
 epitran
+numba
