@@ -15,10 +15,13 @@ from functools import partial
 from typing import List, Optional
 
 import epitran
+from epitran.download import cedict
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map, thread_map
 
 from utils import get_lang_weights
+
+cedict()  # downloads cedict
 
 TO_KEEP = {
     "en",
@@ -103,13 +106,10 @@ def process_chunk(lang2, chunk: List[str]) -> List[str]:
     return [ipa_processor.process_str(word) for word in chunk]
 
 
-def step_1(N: Optional[int] = None):
-    # Check if output/step1.pkl exists
-    output_path = "output/step1.pkl"
-    if os.path.exists(output_path):
-        with open(output_path, "rb") as f:
-            return pickle.load(f)
+os.makedirs("output/ipa", exist_ok=True)
 
+
+def step_1(N: Optional[int] = None):
     # FIXME: ~30s long
 
     # 1. Load all pkl files from data/translations/downloads/xx-yy.pkl if yy is "et"
@@ -147,18 +147,31 @@ def step_1(N: Optional[int] = None):
             # y2word is a dict: id -> word in lang2
             # x2ys is a dict: id in lang1 -> list of ids in lang2
 
-        ipa_processor = IPAProcessor(lang2)
-        if lang2 in {"en"}:
-            # Use thread_map for parallel processing
-            keys = list(y2word.keys())
-            values = list(y2word.values())
-            norm_values = thread_map(ipa_processor.process_str, values, desc=f"Processing {lang2} words")
-            y2normWord = dict(zip(keys, norm_values))
+        # Check if output/step1.pkl exists
+        output_path = f"output/ipa/{lang2}.pkl"
+        if os.path.exists(output_path):
+            with open(output_path, "rb") as f:
+                y2normWord = pickle.load(f)
         else:
-            y2normWord = {
-                k: ipa_processor.process_str(v)
-                for k, v in tqdm(y2word.items(), desc=f"Processing {lang2} words")
-            }
+            ipa_processor = IPAProcessor(lang2)
+            if lang2 in {"en"}:
+                # Use thread_map for parallel processing
+                keys = list(y2word.keys())
+                values = list(y2word.values())
+                norm_values = thread_map(
+                    ipa_processor.process_str, values, desc=f"Processing {lang2} words"
+                )
+                y2normWord = dict(zip(keys, norm_values))
+            else:
+                y2normWord = {
+                    k: ipa_processor.process_str(v)
+                    for k, v in tqdm(y2word.items(), desc=f"Processing {lang2} words")
+                }
+
+            # Save the processed y2normWord to a pickle file
+            print(f"Saving {lang2} IPA words to {output_path}")
+            with open(output_path, "wb") as f:
+                pickle.dump(y2normWord, f)
 
         all_y2normWord[lang2] = y2normWord  # Collect all y2word mappings
         all_y2word[lang2] = y2word
@@ -179,14 +192,6 @@ def step_1(N: Optional[int] = None):
             int_anon_tokens_coocurrences[new_x_id][lang2] = ys[0]
 
     print(len(int_anon_tokens_coocurrences), "interla anonymous tokens")
-
-    # Save result to output/step1.pkl
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, "wb") as f:
-        pickle.dump(
-            (int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS), f
-        )
-
     return int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS
 
 
