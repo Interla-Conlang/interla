@@ -11,10 +11,12 @@ import os
 import pickle
 import unicodedata
 from collections import defaultdict
-from typing import Optional
+from functools import partial
+from typing import List, Optional
 
 import epitran
 from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map, thread_map
 
 from utils import get_lang_weights
 
@@ -96,6 +98,11 @@ def process_str(s):
     return s
 
 
+def process_chunk(lang2, chunk: List[str]) -> List[str]:
+    ipa_processor = IPAProcessor(lang2)
+    return [ipa_processor.process_str(word) for word in chunk]
+
+
 def step_1(N: Optional[int] = None):
     # Check if output/step1.pkl exists
     output_path = "output/step1.pkl"
@@ -126,11 +133,10 @@ def step_1(N: Optional[int] = None):
     all_y2word = dict()  # To collect all y2word mappings
     all_word2x = dict()  # To collect all word2x mappings
 
-    for fpath in tqdm(et_pkls):
+    for fpath in et_pkls:
         lang2 = (
             os.path.basename(fpath).split("-")[1].split(".")[0]
         )  # e.g. "fi" from "et-fi.pkl"
-        ipa_processor = IPAProcessor(lang2)
 
         with open(fpath, "rb") as f:
             word2x, y2word, x2ys = pickle.load(f)
@@ -141,10 +147,31 @@ def step_1(N: Optional[int] = None):
             # y2word is a dict: id -> word in lang2
             # x2ys is a dict: id in lang1 -> list of ids in lang2
 
-        y2normWord = {
-            k: ipa_processor.process_str(v)
-            for k, v in tqdm(y2word.items(), desc=f"Processing {lang2} words")
-        }
+        if lang2 in {"en"}:
+            n_workers = 11
+            items = list(y2word.items())
+            ks = [i[0] for i in items]  # Get the keys (ids in lang2)
+            vs = [i[1] for i in items]  # Get the values (words in lang2)
+            chunks = [
+                vs[i : i + n_workers] for i in range(0, len(vs), n_workers)
+            ]  # Split into chunks for parallel processing
+            results = process_map(
+                partial(process_chunk, lang2),
+                chunks,
+                desc=f"Processing {lang2} words",
+                max_workers=n_workers,
+            )
+            # results is a list of list
+            y2normWord = dict(
+                zip(ks, [item for sublist in results for item in sublist])
+            )
+        else:
+            ipa_processor = IPAProcessor(lang2)
+            y2normWord = {
+                k: ipa_processor.process_str(v)
+                for k, v in tqdm(y2word.items(), desc=f"Processing {lang2} words")
+            }
+
         all_y2normWord[lang2] = y2normWord  # Collect all y2word mappings
         all_y2word[lang2] = y2word
 
@@ -173,3 +200,7 @@ def step_1(N: Optional[int] = None):
         )
 
     return int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS
+
+
+if __name__ == "__main__":
+    step_1()
