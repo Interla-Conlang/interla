@@ -34,9 +34,6 @@ def string_barycenter(words: List[str], weights: Optional[List[float]] = None) -
 
 if __name__ == "__main__":
     # *** TESTS ***
-    # for line in align_words_list(["esprit", "spirit", "spirito", "gespenst"]):
-    #     print(line)
-
     # print(string_barycenter(["hello", "hallo", "hola"]))
     # print(string_barycenter(["spirit", "spirito", "esprit", "gespenst"]))
 
@@ -68,16 +65,14 @@ if __name__ == "__main__":
     #     ("preto", "pt"),
     # ]
 
-    words_with_langs = (
-        [
-            ("Black", "it"),
-            ("Sirius", "vi"),
-            ("Sirius", "id"),
-            ("Sirius", "tr"),
-            ("天狼星", "zh_tw"),
-            ("Sirius", "pt"),
-        ]
-    )
+    words_with_langs = [
+        ("Black", "it"),
+        ("Sirius", "vi"),
+        ("Sirius", "id"),
+        ("Sirius", "tr"),
+        ("天狼星", "zh_tw"),
+        ("Sirius", "pt"),
+    ]
 
     # Create IPA processors for each unique language
     unique_langs = list(set(lang for _, lang in words_with_langs))
@@ -91,4 +86,6 @@ if __name__ == "__main__":
     ipa_processors = {lang: IPAProcessor(lang, replace=True) for lang in unique_langs}
     words = [ipa_processors[lang].process_str(word) for word, lang in words_with_langs]
     print("Words used in barycenter:", words)
+    for line in align_words_list(words):
+        print(line)
     print(string_barycenter(words, weights))
