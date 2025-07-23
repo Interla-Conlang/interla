@@ -1,5 +1,6 @@
 import os
 import pickle
+from typing import Dict, Tuple
 
 from tqdm.contrib.concurrent import process_map
 
@@ -13,11 +14,21 @@ interla_vocab_path = "output/interla_vocab.pkl"
 
 if os.path.exists(interla_vocab_path):
     with open(interla_vocab_path, "rb") as f:
-        vocab = pickle.load(f)
+        vocab: Dict[str, str] = pickle.load(f)
 else:
     vocab = {}
 
-    def compute_token(args):
+    def compute_token(args: Tuple[str, dict]) -> Tuple[str, str]:
+        """
+        Compute the interlanguage token for a given anonymous token and its associated words.
+        Function used for parallel processing.
+        Args:
+            args (Tuple[str, dict]): A tuple containing the anonymous token and a dictionary
+                mapping language codes to word IDs associated with that token.
+        Returns:
+            Tuple[str, str]: A tuple containing the interlanguage orthographic token and the anonymous token
+            for which it was computed.
+        """
         int_anon_token, assoc_words = args
 
         # Get the words and the weights
@@ -26,8 +37,14 @@ else:
         ]
         weights = [LANG_WEIGHTS[lang] for lang in assoc_words.keys()]
 
+        to_keep = [bool(len(word)) for word in words]
+        words = [word for word, keep in zip(words, to_keep) if keep]
+        weights = [weight for weight, keep in zip(weights, to_keep) if keep]
+
         # Compute barycenter
-        if len(words) == 1:
+        if len(words) == 0:
+            int_ipa_token = ""
+        elif len(words) == 1:
             int_ipa_token = words[0]
         else:
             int_ipa_token = string_barycenter(words, weights)
@@ -41,23 +58,12 @@ else:
         compute_token,
         list(int_anon_tokens_coocurrences.items()),
         desc="Finding optimal interla tokens",
+        # chunksize=1
     )
     for int_orth_token, int_anon_token in results:
-        vocab[int_orth_token] = int_anon_token
+        if int_orth_token:  # remove empty tokens
+            vocab[int_orth_token] = int_anon_token
 
     # Save the vocabulary to a pickle file
     with open(interla_vocab_path, "wb") as f:
         pickle.dump(vocab, f)
-
-
-for int_orth_token, int_anon_token in vocab.items():
-    assoc_words = int_anon_tokens_coocurrences.get(int_anon_token, {})
-    if len(assoc_words) > 5:
-        print(f"Interla: {int_orth_token}")
-        for lang, y_id in assoc_words.items():
-            y2word = all_y2word.get(lang, {})
-            y2normWord = all_y2normWord.get(lang, {})
-            word = y2word.get(y_id, "")
-            normWord = y2normWord.get(y_id, "")
-            print(f"  {lang}: {word} ({normWord})")
-        print()
