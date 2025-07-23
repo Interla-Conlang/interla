@@ -77,7 +77,6 @@ class IPAProcessor:
         if self.epitran_code:
             try:
                 self.epitran_obj = epitran.Epitran(self.epitran_code)
-                print(f"Initialized epitran for {lang_code} ({self.epitran_code})")
             except Exception as e:
                 print(
                     f"Warning: Could not initialize epitran for {self.epitran_code}: {e}"
@@ -118,8 +117,13 @@ def process_str(s):
     s = "".join(c for c in s if not unicodedata.combining(c))
     return s
 
-
 def step_1(N: Optional[int] = None):
+    # Check if output/step1.pkl exists
+    output_path = "output/step1.pkl"
+    if os.path.exists(output_path):
+        with open(output_path, "rb") as f:
+            return pickle.load(f)
+
     # FIXME: ~30s long
 
     # 1. Load all pkl files from data/translations/downloads/xx-yy.pkl if yy is "et"
@@ -155,7 +159,7 @@ def step_1(N: Optional[int] = None):
             # y2word is a dict: id -> word in lang2
             # x2ys is a dict: id in lang1 -> list of ids in lang2
 
-        y2normWord = {k: ipa_processor.process_str(v) for k, v in y2word.items()}
+        y2normWord = {k: ipa_processor.process_str(v) for k, v in tqdm(y2word.items(), desc=f"Processing {lang2} words")}
         all_y2normWord[lang2] = y2normWord  # Collect all y2word mappings
         all_y2word[lang2] = y2word
 
@@ -175,4 +179,10 @@ def step_1(N: Optional[int] = None):
             int_anon_tokens_coocurrences[new_x_id][lang2] = ys[0]
 
     print(len(int_anon_tokens_coocurrences), "interla anonymous tokens")
+
+    # Save result to output/step1.pkl
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, "wb") as f:
+        pickle.dump((int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS), f)
+
     return int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS
