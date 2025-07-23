@@ -2,3 +2,4 @@ pandas
 odfpy
 pythainlp
 levenshtein
+epitran

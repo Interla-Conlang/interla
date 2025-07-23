@@ -27,7 +27,7 @@
 ```bash
 pip install -r requirements.txt
 ```
-
+- [Install lex_lookup](https://pypi.org/project/epitran/#:~:text=Installation%20of%20Flite%20(for%20English%20G2P))
 
 ### Choosing edit distance
 **Criterias**

@@ -40,45 +40,46 @@ if __name__ == "__main__":
     # print(string_barycenter(["hello", "hallo", "hola"]))
     # print(string_barycenter(["spirit", "spirito", "esprit", "gespenst"]))
 
-    from assign_spellings_common import process_str
+    from assign_spellings_common import IPAProcessor
     from utils import get_lang_weights
 
     _, LANG_WEIGHTS = get_lang_weights()
     # words = [
-    #     process_str(s)
-    #     for s in [
-    #         "lista",  # es
-    #         "Liste",  # de
-    #         "list",  # en
-    #         "lista",  # it
-    #         "cả_thảy",  # vi
-    #         "Blacklist",  # id
-    #         "Listede",  # tr
-    #         "liste",  # fr
-    #         "lista",  # pt
+    #     ipa_processor.process_str(s)
+    #     for s, lang in [
+    #         ("lista", "es"),
+    #         ("Liste", "de"),
+    #         ("list", "en"),
+    #         ("lista", "it"),
+    #         ("cả_thảy", "vi"),
+    #         ("Blacklist", "id"),
+    #         ("Listede", "tr"),
+    #         ("liste", "fr"),
+    #         ("lista", "pt"),
     #     ]
     # ]
     # weights = [
     #     LANG_WEIGHTS[lang]
     #     for lang in ["es", "de", "en", "it", "vi", "id", "tr", "fr", "pt"]
     # ]
-    words = [
-        process_str(s)
-        for s in [
-            "noir",
-            "black",
-            "schwarz",
-            "negro",
-            "nero",
-            "đen",
-            "hitam",
-            "siyah",
-            "noir",
-            "preto",
-        ]
+
+    # Using IPA conversion for each word with its corresponding language
+    words_with_langs = [
+        ("noir", "fr"),
+        ("black", "en"),
+        ("schwarz", "de"),
+        ("negro", "es"),
+        ("nero", "it"),
+        ("đen", "vi"),
+        ("hitam", "id"),
+        ("siyah", "tr"),
+        ("preto", "pt"),
     ]
-    weights = [
-        LANG_WEIGHTS[lang]
-        for lang in ["fr", "en", "de", "es", "it", "vi", "id", "tr", "pt"]
-    ]
+
+    # Create IPA processors for each unique language
+    unique_langs = list(set(lang for _, lang in words_with_langs))
+    ipa_processors = {lang: IPAProcessor(lang) for lang in unique_langs}
+
+    words = [ipa_processors[lang].process_str(word) for word, lang in words_with_langs]
+    weights = [LANG_WEIGHTS[lang] for _, lang in words_with_langs]
     print(string_barycenter(words, weights))
