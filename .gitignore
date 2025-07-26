@@ -5,3 +5,4 @@ data/translations/downloads
 __pycache__
 TODO.md
 .vscode/launch.json
+data/frequencies/downloads/
