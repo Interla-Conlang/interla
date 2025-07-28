@@ -107,7 +107,7 @@ lang,source_ipa,target_ipa
 *,ï,i
 *,ñ,n
 *,ô,e
-*,õ,n
+*,õ,on
 *,ö,u
 *,ü,u
 *,ÿ,i
@@ -124,3 +124,5 @@ lang,source_ipa,target_ipa
 *,ẽ,n
 *,ɪ,i
 *,ă,a
+*,ɑ̃,an
+*,ɛ̃,en
