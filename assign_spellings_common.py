@@ -20,7 +20,6 @@ from typing import Dict, List, Optional, Tuple
 
 import epitran
 import pandas as pd
-from epitran.download import cedict
 from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
 
@@ -28,8 +27,9 @@ from constants import LANG_TO_EPITRAN
 from logging_config import logger
 from utils import get_lang_weights
 
-logger.debug("Downloading cedict data")
-cedict()  # downloads cedict
+# logger.debug("Downloading cedict data")
+# from epitran.download import cedict
+# cedict()  # downloads cedict
 
 TO_KEEP = set([k for k, v in LANG_TO_EPITRAN.items() if v is not None])
 logger.debug(f"Languages to keep: {len(TO_KEEP)} languages")
