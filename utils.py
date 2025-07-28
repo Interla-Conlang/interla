@@ -122,21 +122,5 @@ def get_lang_weights() -> Tuple[pd.DataFrame, Dict[str, float]]:
     logger.debug(f"Successfully calculated weights for {len(weights)} languages")
     return languages, weights
 
+
 _, LANG_WEIGHTS = get_lang_weights()
-
-def main() -> None:
-    """Main function for testing the utilities."""
-    logger.debug("Running utils.py main function")
-    try:
-        languages, weights = get_lang_weights()
-        logger.debug("Languages and their weights:")
-        print(languages[["Language", "weight"]])
-        logger.debug("Weights dictionary:")
-        print(weights)
-    except Exception as e:
-        logger.error(f"Error in main function: {e}")
-        raise
-
-
-if __name__ == "__main__":
-    main()

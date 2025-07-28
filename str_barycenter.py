@@ -12,6 +12,7 @@ from gen_vocabulary import path_pronounciability_weight
 from logging_config import logger
 from msa import msa
 from sampler import sample_tokens
+from utils import LANG_WEIGHTS
 
 
 def align_words_list(word_list: List[str]) -> List[Tuple[str, ...]]:
@@ -98,6 +99,8 @@ def string_barycenter(
         tokens = []
         token_weights = []
 
+        # TODO: the best would be to avoid introducing impossible path because of the heuristic
+
         def compute_bary(aligned, weights, use_heuristic):
             nonlocal tokens, token_weights
             tokens = []
@@ -135,6 +138,8 @@ def string_barycenter(
                 raise
 
         logger.debug(f"Computed barycenter: '{bary}' from words {words}")
+
+        assert bary != ""
         return bary
 
     except Exception as e:
@@ -148,10 +153,8 @@ def main() -> None:
 
     try:
         from assign_spellings_common import IPAProcessor
-        from utils import get_lang_weights
 
         logger.debug("Loading language weights")
-        _, LANG_WEIGHTS = get_lang_weights()
 
         for words_with_langs in [
             [

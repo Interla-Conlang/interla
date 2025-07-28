@@ -2,7 +2,6 @@ from collections import Counter
 
 import pytest
 
-from assign_spellings_common import IPAProcessor
 from str_barycenter import align_words_list, most_common_bary, string_barycenter
 from utils import LANG_WEIGHTS
 
