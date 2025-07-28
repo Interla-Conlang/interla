@@ -122,6 +122,7 @@ def get_lang_weights() -> Tuple[pd.DataFrame, Dict[str, float]]:
     logger.debug(f"Successfully calculated weights for {len(weights)} languages")
     return languages, weights
 
+_, LANG_WEIGHTS = get_lang_weights()
 
 def main() -> None:
     """Main function for testing the utilities."""
