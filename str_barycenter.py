@@ -56,7 +56,7 @@ def most_common_bary(counter: Counter[str]) -> str:
         return ""
 
 
-HEURISTICS = [(3, 0.05), (5, 0.2), False]
+HEURISTICS = [(3, 0.05), (7, 0.01), (15, 0.0), False]
 
 
 def string_barycenter(
