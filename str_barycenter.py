@@ -125,101 +125,105 @@ def main() -> None:
 
         logger.debug("Loading language weights")
         _, LANG_WEIGHTS = get_lang_weights()
-        # words_with_langs = [
-        #     ("lista", "es"),
-        #     ("Liste", "de"),
-        #     ("list", "en"),
-        #     ("lista", "it"),
-        #     ("cả_thảy", "vi"),
-        #     ("Blacklist", "id"),
-        #     ("Listede", "tr"),
-        #     ("liste", "fr"),
-        #     ("lista", "pt"),
-        # ]
 
-        # words_with_langs = [
-        #     ("noir", "fr"),
-        #     ("black", "en"),
-        #     ("schwarz", "de"),
-        #     ("negro", "es"),
-        #     ("nero", "it"),
-        #     ("đen", "vi"),
-        #     ("hitam", "id"),
-        #     ("siyah", "tr"),
-        #     ("preto", "pt"),
-        # ]
+        for words_with_langs in [
+            [
+                ("lista", "es"),
+                ("Liste", "de"),
+                ("list", "en"),
+                ("lista", "it"),
+                ("cả_thảy", "vi"),
+                ("Blacklist", "id"),
+                ("Listede", "tr"),
+                ("liste", "fr"),
+                ("lista", "pt"),
+            ],
+            [
+                ("noir", "fr"),
+                ("black", "en"),
+                ("schwarz", "de"),
+                ("negro", "es"),
+                ("nero", "it"),
+                ("đen", "vi"),
+                ("hitam", "id"),
+                ("siyah", "tr"),
+                ("preto", "pt"),
+            ],
+            [
+                ("Black", "it"),
+                ("Sirius", "vi"),
+                ("Sirius", "id"),
+                ("Sirius", "tr"),
+                ("天狼星", "zh_tw"),
+                ("Sirius", "pt"),
+            ],
+        ]:
+            logger.debug(f"Testing with {len(words_with_langs)} word-language pairs")
 
-        words_with_langs = [
-            ("Black", "it"),
-            ("Sirius", "vi"),
-            ("Sirius", "id"),
-            ("Sirius", "tr"),
-            ("天狼星", "zh_tw"),
-            ("Sirius", "pt"),
-        ]
+            # Create IPA processors for each unique language
+            unique_langs = list(set(lang for _, lang in words_with_langs))
+            weights = [LANG_WEIGHTS[lang] for _, lang in words_with_langs]
 
-        logger.debug(f"Testing with {len(words_with_langs)} word-language pairs")
+            logger.debug(f"Creating IPA processors for languages: {unique_langs}")
+            ipa_processors = {}
+            for lang in unique_langs:
+                try:
+                    ipa_processors[lang] = IPAProcessor(
+                        lang, replace=False
+                    )  # 49% of the time is spent creating the IPAProcessors
+                except Exception as e:
+                    logger.warning(f"Failed to create IPA processor for {lang}: {e}")
 
-        # Create IPA processors for each unique language
-        unique_langs = list(set(lang for _, lang in words_with_langs))
-        weights = [LANG_WEIGHTS[lang] for _, lang in words_with_langs]
+            # Process words without replacement
+            logger.debug("Processing words without IPA replacement")
+            words = []
+            for word, lang in words_with_langs:
+                if lang in ipa_processors:
+                    processed = ipa_processors[lang].process_str(word)
+                    words.append(processed)
+                else:
+                    logger.warning(
+                        f"No IPA processor for {lang}, using original word: {word}"
+                    )
+                    words.append(word)
 
-        logger.debug(f"Creating IPA processors for languages: {unique_langs}")
-        ipa_processors = {}
-        for lang in unique_langs:
-            try:
-                ipa_processors[lang] = IPAProcessor(lang, replace=False)
-            except Exception as e:
-                logger.warning(f"Failed to create IPA processor for {lang}: {e}")
+            print("IPA converted words:", words)
 
-        # Process words without replacement
-        logger.debug("Processing words without IPA replacement")
-        words = []
-        for word, lang in words_with_langs:
-            if lang in ipa_processors:
-                processed = ipa_processors[lang].process_str(word)
-                words.append(processed)
-            else:
-                logger.warning(
-                    f"No IPA processor for {lang}, using original word: {word}"
-                )
-                words.append(word)
+            # Process words with replacement
+            logger.debug("Processing words with IPA replacement")
+            ipa_processors_replace = {}
+            for lang in unique_langs:
+                try:
+                    ipa_processors_replace[lang] = IPAProcessor(
+                        lang, replace=True
+                    )  # 49% of the time is spent creating the IPAProcessors
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to create replacement IPA processor for {lang}: {e}"
+                    )
 
-        print("IPA converted words:", words)
+            words_replaced = []
+            for word, lang in words_with_langs:
+                if lang in ipa_processors_replace:
+                    processed = ipa_processors_replace[lang].process_str(word)
+                    words_replaced.append(processed)
+                else:
+                    logger.warning(
+                        f"No replacement IPA processor for {lang}, using original: {word}"
+                    )
+                    words_replaced.append(word)
 
-        # Process words with replacement
-        logger.debug("Processing words with IPA replacement")
-        ipa_processors_replace = {}
-        for lang in unique_langs:
-            try:
-                ipa_processors_replace[lang] = IPAProcessor(lang, replace=True)
-            except Exception as e:
-                logger.warning(
-                    f"Failed to create replacement IPA processor for {lang}: {e}"
-                )
+            print("Words used in barycenter:", words_replaced)
 
-        words_replaced = []
-        for word, lang in words_with_langs:
-            if lang in ipa_processors_replace:
-                processed = ipa_processors_replace[lang].process_str(word)
-                words_replaced.append(processed)
-            else:
-                logger.warning(
-                    f"No replacement IPA processor for {lang}, using original: {word}"
-                )
-                words_replaced.append(word)
+            # Display alignment
+            logger.debug("Displaying word alignment")
+            for line in align_words_list(words_replaced):
+                print(line)
 
-        print("Words used in barycenter:", words_replaced)
-
-        # Display alignment
-        logger.debug("Displaying word alignment")
-        for line in align_words_list(words_replaced):
-            print(line)
-
-        # Compute and display barycenter
-        logger.debug("Computing string barycenter")
-        barycenter = string_barycenter(words_replaced, weights)
-        print("Barycenter:", barycenter)
+            # Compute and display barycenter
+            logger.debug("Computing string barycenter")
+            barycenter = string_barycenter(words_replaced, weights)
+            print("Barycenter:", barycenter)
 
     except Exception as e:
         logger.critical(f"Critical error in main function: {e}")
