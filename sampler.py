@@ -36,6 +36,9 @@ def recursive_search(
 
     # Base case: reached the end
     if position >= len(tokens):
+        # Check if all characters in the path are "-"
+        if all(c == "-" for c in current_path):
+            return [], float("inf")
         # Calculate final path weight
         if current_weight < best_weight_so_far[0]:
             best_weight_so_far[0] = current_weight
