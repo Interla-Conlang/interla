@@ -29,6 +29,11 @@ pip install -r requirements.txt
 ```
 - [Install lex_lookup](https://pypi.org/project/epitran/#:~:text=Installation%20of%20Flite%20(for%20English%20G2P))
 
+### Profile
+```bash
+kernprof -v -l script_to_profile.py
+```
+
 ### Choosing edit distance
 **Criterias**
 - Very fast to compute (O(N²) operations)
