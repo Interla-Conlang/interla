@@ -8,8 +8,10 @@ words using multiple sequence alignment (MSA) techniques.
 from collections import Counter
 from typing import List, Optional, Tuple
 
+from gen_vocabulary import path_pronounciability_weight
 from logging_config import logger
 from msa import msa
+from sampler import sample_tokens
 
 
 def align_words_list(word_list: List[str]) -> List[Tuple[str, ...]]:
@@ -43,6 +45,14 @@ def align_words_list(word_list: List[str]) -> List[Tuple[str, ...]]:
     except Exception as e:
         logger.error(f"Failed to align words {word_list}: {e}")
         raise
+
+
+def most_common_bary(counter: Counter[str]) -> str:
+    most_common = counter.most_common(1)[0][0]
+    if most_common != "-":
+        return most_common
+    else:
+        return ""
 
 
 def string_barycenter(words: List[str], weights: Optional[List[float]] = None) -> str:
@@ -82,19 +92,20 @@ def string_barycenter(words: List[str], weights: Optional[List[float]] = None) -
         logger.debug(f"Aligned words into {len(aligned)} positions")
 
         bary = ""
-        for i, chars in enumerate(aligned):
+        tokens = []
+        token_weights = []
+        for chars in aligned:
             counter: Counter[str] = Counter()
             for char, weight in zip(chars, weights):
                 counter[char] += weight  # type: ignore
 
-            most_common = counter.most_common(1)[0][0]
-            if most_common != "-":
-                bary += most_common
-                logger.debug(
-                    f"Position {i}: selected '{most_common}' from {dict(counter)}"
-                )
-            else:
-                logger.debug(f"Position {i}: skipping gap character '-'")
+            tokens.append(tuple(counter.keys()))
+            # token weight is a "distance", so we make this 1-counter value
+            token_weights.append(tuple(1 - val for val in counter.values()))
+
+            # bary += most_common_bary(counter)
+
+        bary = sample_tokens(tokens, token_weights, path_pronounciability_weight)
 
         logger.debug(f"Computed barycenter: '{bary}' from words {words}")
         return bary

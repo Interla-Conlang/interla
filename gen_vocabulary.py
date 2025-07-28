@@ -7,7 +7,7 @@ unpronounceable sequences.
 """
 
 import itertools
-from typing import List, Set
+from typing import Dict, List, Set
 
 import pandas as pd
 from tqdm import tqdm
@@ -15,25 +15,31 @@ from tqdm import tqdm
 from logging_config import logger
 
 
-def load_alphabet() -> List[str]:
+def load_alphabet() -> Dict[str, str]:
     """
     Load the Interla alphabet from the CSV file.
 
     Returns:
-        List of letters in the Interla alphabet
-
-    Raises:
-        FileNotFoundError: If alphabet.csv is not found
+        Dictionary mapping letters to their phonetic representations
     """
     logger.debug("Loading alphabet from output/alphabet.csv")
     try:
         df = pd.read_csv("output/alphabet.csv")
-        letters = df["Letter"].tolist()
-        logger.debug(f"Loaded {len(letters)} letters from alphabet: {letters}")
-        return letters
+        alphabet = df.set_index("Letter")["IPA"].to_dict()
+        logger.debug(f"Loaded {len(alphabet)} letters from alphabet: {alphabet}")
+        return alphabet
     except FileNotFoundError as e:
         logger.error(f"Could not find alphabet CSV file: {e}")
-        raise
+        return {}
+
+
+alphabet = load_alphabet()
+LETTERS = list(alphabet.keys())
+IPA_LETTERS = list(alphabet.values())
+VOWELS = set("aeiou")
+CONSONANTS = set(LETTERS) - VOWELS
+IPA_VOWELS = set(IPA_LETTERS) & set("aeiou")  # Define your IPA vowels here
+IPA_CONSONANTS = set(IPA_LETTERS) - IPA_VOWELS
 
 
 def generate_letter_combinations(letters: List[str], max_length: int = 5) -> Set[str]:
@@ -80,7 +86,7 @@ def generate_letter_combinations(letters: List[str], max_length: int = 5) -> Set
     return combinations
 
 
-def is_pronounceable(combo: str, vowels: Set[str], consonants: Set[str]) -> bool:
+def is_pronounceable(combo: str) -> bool:
     """
     Check if a letter combination is pronounceable according to phonetic rules.
 
@@ -91,8 +97,6 @@ def is_pronounceable(combo: str, vowels: Set[str], consonants: Set[str]) -> bool
 
     Args:
         combo: Letter combination to check
-        vowels: Set of vowel letters
-        consonants: Set of consonant letters
 
     Returns:
         True if the combination is pronounceable, False otherwise
@@ -107,14 +111,14 @@ def is_pronounceable(combo: str, vowels: Set[str], consonants: Set[str]) -> bool
     prev_vowel = None
 
     for p in parts:
-        if p in vowels:
+        if p in VOWELS:
             # Forbid two consecutive same vowels
             if prev_vowel == p:
                 return False
             vowel_count += 1
             consonant_count = 0
             prev_vowel = p
-        elif p in consonants:
+        elif p in CONSONANTS:
             consonant_count += 1
             vowel_count = 0
             prev_vowel = None
@@ -131,15 +135,75 @@ def is_pronounceable(combo: str, vowels: Set[str], consonants: Set[str]) -> bool
     return True
 
 
-def filter_pronounceable_combinations(
-    combinations: Set[str], letters: List[str]
-) -> List[str]:
+def path_pronounciability_weight(path: List[str], path_weights: List[float]) -> float:
+    """
+    Calculate the total pronounciability weight for a path of characters.
+
+    Weight calculation is based on phonetic rules:
+    - Base weight of 1.0 per character
+    - +inf penalty for more than 2 consecutive vowels
+    - +inf penalty for more than 1 consecutive consonant
+    - +inf penalty for two consecutive identical vowels
+    - Ignores "-" tokens when checking consecutivity
+
+    Args:
+        path: List of characters representing the path
+        path_weights: List of weights corresponding to each character in the path
+
+    Returns:
+        Total pronounciability weight for the path (lower is better)
+    """
+    if not path:
+        return 0.0
+
+    # Filter out "-" tokens for consecutivity checks
+    filtered_path = [char for char in path if char != "-"]
+
+    if not filtered_path:
+        return 0.0
+
+    total_weight = sum(path_weights)  # Start with negative sum of weights
+
+    vowel_count = 0
+    consonant_count = 0
+    prev_vowel = None
+
+    for char in filtered_path:
+        if char in IPA_VOWELS:
+            # Check for consecutive identical vowels (forbidden)
+            if prev_vowel == char:
+                return float("inf")
+
+            vowel_count += 1
+            consonant_count = 0
+            prev_vowel = char
+
+        elif char in IPA_CONSONANTS:
+            consonant_count += 1
+            vowel_count = 0
+            prev_vowel = None
+
+        else:
+            # Unknown character, reset counters
+            vowel_count = 0
+            consonant_count = 0
+            prev_vowel = None
+
+        # Apply penalties for violating phonetic constraints
+        if vowel_count > 2:
+            return float("inf")
+        if consonant_count > 1:
+            return float("inf")
+
+    return total_weight
+
+
+def filter_pronounceable_combinations(combinations: Set[str]) -> List[str]:
     """
     Filter combinations to keep only pronounceable ones.
 
     Args:
         combinations: Set of all generated combinations
-        letters: List of letters to classify as vowels/consonants
 
     Returns:
         List of pronounceable combinations
@@ -147,16 +211,14 @@ def filter_pronounceable_combinations(
     logger.debug(f"Filtering {len(combinations)} combinations for pronounceability")
 
     # Define vowels and consonants
-    vowels = set("aeiou")
-    consonants = set(letters) - vowels
-    logger.debug(f"Vowels: {vowels}")
-    logger.debug(f"Consonants: {consonants}")
+    logger.debug(f"Vowels: {VOWELS}")
+    logger.debug(f"Consonants: {CONSONANTS}")
 
     pronounceable = []
     filtered_count = 0
 
     for combo in tqdm(combinations, desc="Filtering combinations"):
-        if is_pronounceable(combo, vowels, consonants):
+        if is_pronounceable(combo):
             pronounceable.append(combo)
         else:
             filtered_count += 1
@@ -194,16 +256,13 @@ def main() -> None:
     logger.debug("Starting vocabulary generation")
 
     try:
-        # Load alphabet
-        letters = load_alphabet()
-
         # Generate all combinations
         logger.debug("Generating letter combinations")
-        combinations = generate_letter_combinations(letters, max_length=5)
+        combinations = generate_letter_combinations(LETTERS, max_length=5)
 
         # Filter for pronounceable combinations
         logger.debug("Filtering for pronounceable combinations")
-        pronounceable = filter_pronounceable_combinations(combinations, letters)
+        pronounceable = filter_pronounceable_combinations(combinations)
 
         # Save results
         output_file = "output/pronounceable_combinations.csv"
@@ -220,6 +279,7 @@ def main() -> None:
     except Exception as e:
         logger.critical(f"Critical error in vocabulary generation: {e}")
         raise
+
 
 # TODO: how to filter out combinations that are impossible to pronounce???
 # TODO: i think the best way is empirically to find the combinations thta are present in the languages

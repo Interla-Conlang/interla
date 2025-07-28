@@ -74,9 +74,7 @@ def compute_token(args: Tuple[int, Dict[str, int]]) -> Tuple[str, int]:
     int_orth_token = ""
     if int_ipa_token:
         try:
-            int_orth_token = "".join(
-                IPA_TO_INTERLA[char] for char in int_ipa_token
-            )
+            int_orth_token = "".join(IPA_TO_INTERLA[char] for char in int_ipa_token)
             logger.debug(
                 f"Converted IPA '{int_ipa_token}' to orthography '{int_orth_token}'"
             )
@@ -153,29 +151,6 @@ def load_or_compute_vocabulary() -> Dict[str, int]:
     return vocab
 
 
-def display_vocabulary_sample(vocab: Dict[str, int], sample_size: int = 10) -> None:
-    """
-    Display a sample of the generated vocabulary.
-
-    Args:
-        vocab: The generated vocabulary dictionary
-        sample_size: Number of entries to display
-    """
-    logger.debug(
-        f"Displaying sample of {min(sample_size, len(vocab))} vocabulary entries"
-    )
-
-    vocab_items = list(vocab.items())[:sample_size]
-
-    print("Sample Vocabulary Entries:")
-    print("-" * 40)
-    for i, (orth_token, anon_token) in enumerate(vocab_items, 1):
-        print(f"{i:2d}. {orth_token} -> {anon_token}")
-
-    if len(vocab) > sample_size:
-        print(f"... and {len(vocab) - sample_size} more entries")
-
-
 def main() -> None:
     """Main function for barycenter-based spelling assignment."""
     logger.debug("Starting barycenter-based spelling assignment")
@@ -195,10 +170,7 @@ def main() -> None:
         logger.debug(f"Loaded weights for {len(LANG_WEIGHTS)} languages")
 
         # Load or compute vocabulary
-        vocab = load_or_compute_vocabulary()
-
-        # Display sample results
-        display_vocabulary_sample(vocab)
+        load_or_compute_vocabulary()
 
         logger.debug("Barycenter-based spelling assignment completed successfully")
 
