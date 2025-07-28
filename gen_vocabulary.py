@@ -9,6 +9,7 @@ unpronounceable sequences.
 import itertools
 from typing import Dict, List, Set
 
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
@@ -140,9 +141,10 @@ def path_pronounciability_weight(path: List[str], path_weights: List[float]) -> 
     Calculate the total pronounciability weight for a path of characters.
 
     Weight calculation is based on phonetic rules:
-    - Base weight of 1.0 per character
-    - +inf penalty for more than 2 consecutive vowels
-    - +inf penalty for more than 1 consecutive consonant
+    - +0.5 penalty for more than 2 consecutive vowels
+    - +0.2 penalty for more than 1 consecutive consonant
+    - +inf penalty for more than 3 consecutive vowels
+    - +inf penalty for more than 2 consecutive consonant
     - +inf penalty for two consecutive identical vowels
     - Ignores "-" tokens when checking consecutivity
 
@@ -153,47 +155,40 @@ def path_pronounciability_weight(path: List[str], path_weights: List[float]) -> 
     Returns:
         Total pronounciability weight for the path (lower is better)
     """
-    if not path:
-        return 0.0
+    total_weight = sum(path_weights)
 
-    # Filter out "-" tokens for consecutivity checks
     filtered_path = [char for char in path if char != "-"]
-
-    if not filtered_path:
-        return 0.0
-
-    total_weight = sum(path_weights)  # Start with negative sum of weights
 
     vowel_count = 0
     consonant_count = 0
     prev_vowel = None
 
-    for char in filtered_path:
+    for i, char in enumerate(filtered_path):
         if char in IPA_VOWELS:
             # Check for consecutive identical vowels (forbidden)
             if prev_vowel == char:
                 return float("inf")
-
             vowel_count += 1
             consonant_count = 0
             prev_vowel = char
-
         elif char in IPA_CONSONANTS:
             consonant_count += 1
             vowel_count = 0
             prev_vowel = None
-
         else:
-            # Unknown character, reset counters
             vowel_count = 0
             consonant_count = 0
             prev_vowel = None
 
-        # Apply penalties for violating phonetic constraints
-        if vowel_count > 2:
+        # Penalties and hard limits
+        if vowel_count > 3:
             return float("inf")
-        if consonant_count > 1:
+        if vowel_count == 3:
+            total_weight += 0.5
+        if consonant_count > 2:
             return float("inf")
+        if consonant_count == 2:
+            total_weight += 0.2
 
     return total_weight
 
