@@ -56,6 +56,9 @@ def most_common_bary(counter: Counter[str]) -> str:
         return ""
 
 
+HEURISTICS = [(3, 0.05), (5, 0.2), False]
+
+
 def string_barycenter(
     words: List[str], weights: Optional[List[float]] = None, use_heuristic: bool = False
 ) -> str:
@@ -99,8 +102,7 @@ def string_barycenter(
     token_weights = []
 
     # TODO: the best would be to avoid introducing impossible path because of the heuristic
-
-    def compute_bary(aligned, weights, use_heuristic):
+    def compute_bary(aligned, weights, heuristic):
         nonlocal tokens, token_weights
         tokens = []
         token_weights = []
@@ -109,12 +111,13 @@ def string_barycenter(
             for char, weight in zip(chars, weights):
                 counter[char] += weight  # type: ignore
 
-            if use_heuristic:
-                most_common = counter.most_common(3)
+            if heuristic:
+                n, min_val = heuristic
+                most_common = counter.most_common(n)
                 chars_ = [most_common[0][0]]
                 weights_ = [1 - most_common[0][1]]
                 for char, val in most_common[1:]:
-                    if val > 0.05:
+                    if val > min_val:
                         chars_.append(char)
                         weights_.append(1 - val)
                 tokens.append(chars_)
@@ -124,21 +127,19 @@ def string_barycenter(
                 token_weights.append([1 - val for val in counter.values()])
         return sample_tokens(tokens, token_weights, path_pronounciability_weight)
 
-    try:
-        bary = compute_bary(aligned, weights, use_heuristic)
-    except Exception as e:
-        if use_heuristic:
-            # Sometimes, heuristic can lead to infeasible path (e.g. 3 vowels in a row, ...)
-            logger.warning(
-                f"Heuristic barycenter failed with error: {e}. Retrying without heuristic."
-            )
-            try:
-                bary = compute_bary(aligned, weights, False)
-            except Exception as e:
+    bary = ""
+    for heuristic in HEURISTICS:
+        try:
+            bary = compute_bary(aligned, weights, heuristic if heuristic else False)
+            break
+        except Exception as e:
+            if heuristic:
+                logger.warning(
+                    f"Heuristic barycenter failed with heuristic {heuristic} and error: {e}. Trying next heuristic."
+                )
+            else:
                 logger.error(f"Failed to compute barycenter without heuristic: {e}")
                 bary = ""
-        else:
-            bary = ""
 
     logger.debug(f"Computed barycenter: '{bary}' from words {words}")
 
