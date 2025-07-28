@@ -90,61 +90,60 @@ def string_barycenter(
 
     logger.debug(f"Computing barycenter for {len(words)} words")
 
-    try:
-        # Align the words first
-        aligned = align_words_list(words)
-        logger.debug(f"Aligned words into {len(aligned)} positions")
+    # Align the words first
+    aligned = align_words_list(words)
+    logger.debug(f"Aligned words into {len(aligned)} positions")
 
-        bary = ""
+    bary = ""
+    tokens = []
+    token_weights = []
+
+    # TODO: the best would be to avoid introducing impossible path because of the heuristic
+
+    def compute_bary(aligned, weights, use_heuristic):
+        nonlocal tokens, token_weights
         tokens = []
         token_weights = []
+        for chars in aligned:
+            counter: Counter[str] = Counter()
+            for char, weight in zip(chars, weights):
+                counter[char] += weight  # type: ignore
 
-        # TODO: the best would be to avoid introducing impossible path because of the heuristic
-
-        def compute_bary(aligned, weights, use_heuristic):
-            nonlocal tokens, token_weights
-            tokens = []
-            token_weights = []
-            for chars in aligned:
-                counter: Counter[str] = Counter()
-                for char, weight in zip(chars, weights):
-                    counter[char] += weight  # type: ignore
-
-                if use_heuristic:
-                    most_common = counter.most_common(3)
-                    chars_ = [most_common[0][0]]
-                    weights_ = [1 - most_common[0][1]]
-                    for char, val in most_common[1:]:
-                        if val > 0.05:
-                            chars_.append(char)
-                            weights_.append(1 - val)
-                    tokens.append(chars_)
-                    token_weights.append(weights_)
-                else:
-                    tokens.append(list(counter.keys()))
-                    token_weights.append([1 - val for val in counter.values()])
-            return sample_tokens(tokens, token_weights, path_pronounciability_weight)
-
-        try:
-            bary = compute_bary(aligned, weights, use_heuristic)
-        except Exception as e:
             if use_heuristic:
-                # Sometimes, heuristic can lead to infeasible path (e.g. 3 vowels in a row, ...)
-                logger.warning(
-                    f"Heuristic barycenter failed with error: {e}. Retrying without heuristic."
-                )
-                bary = compute_bary(aligned, weights, False)
+                most_common = counter.most_common(3)
+                chars_ = [most_common[0][0]]
+                weights_ = [1 - most_common[0][1]]
+                for char, val in most_common[1:]:
+                    if val > 0.05:
+                        chars_.append(char)
+                        weights_.append(1 - val)
+                tokens.append(chars_)
+                token_weights.append(weights_)
             else:
-                raise
+                tokens.append(list(counter.keys()))
+                token_weights.append([1 - val for val in counter.values()])
+        return sample_tokens(tokens, token_weights, path_pronounciability_weight)
 
-        logger.debug(f"Computed barycenter: '{bary}' from words {words}")
-
-        assert bary != ""
-        return bary
-
+    try:
+        bary = compute_bary(aligned, weights, use_heuristic)
     except Exception as e:
-        logger.error(f"Failed to compute barycenter for {words}: {e}")
-        raise
+        if use_heuristic:
+            # Sometimes, heuristic can lead to infeasible path (e.g. 3 vowels in a row, ...)
+            logger.warning(
+                f"Heuristic barycenter failed with error: {e}. Retrying without heuristic."
+            )
+            try:
+                bary = compute_bary(aligned, weights, False)
+            except Exception as e:
+                logger.error(f"Failed to compute barycenter without heuristic: {e}")
+                bary = ""
+        else:
+            bary = ""
+
+    logger.debug(f"Computed barycenter: '{bary}' from words {words}")
+
+    # assert bary != ""
+    return bary
 
 
 def main() -> None:

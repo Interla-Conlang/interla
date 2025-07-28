@@ -156,9 +156,9 @@ def sample_tokens(
         min_future_weights,
         memo,
     )
-    # assert optimal_path, "No valid path found"
-    # assert len(optimal_path) == len(tokens), (
-    #     f"Expected optimal path length {len(tokens)}, got {len(optimal_path)}"
-    # )
-    # assert optimal_weight < float("inf"), "No valid path found"
+    assert optimal_path, "No valid path found"
+    assert len(optimal_path) == len(tokens), (
+        f"Expected optimal path length {len(tokens)}, got {len(optimal_path)}"
+    )
+    assert optimal_weight < float("inf"), "No valid path found"
     return "".join([c for c in optimal_path if c != "-"])
