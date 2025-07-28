@@ -6,8 +6,8 @@ def recursive_search(
     current_path: List[str],
     current_weights: List[float],
     best_weight_so_far: List[float],  # Use list for mutability
-    tokens: List[Tuple[str, ...]],
-    token_weights: List[Tuple[float, ...]],
+    tokens: List[List[str]],
+    token_weights: List[List[float]],
     get_path_weight: Callable[[List[str], List[float]], float],
 ) -> Tuple[List[str], float]:
     """
@@ -73,8 +73,8 @@ def recursive_search(
 
 
 def sample_tokens(
-    tokens: List[Tuple[str, ...]],
-    token_weights: List[Tuple[float, ...]],
+    tokens: List[List[str]],
+    token_weights: List[List[float]],
     get_path_weight: Callable[[List[str], List[float]], float],
 ) -> str:
     """
@@ -96,10 +96,12 @@ def sample_tokens(
     best_weight_so_far = [float("inf")]
 
     # Start recursive search from position 0
-    optimal_path, _ = recursive_search(
+    optimal_path, optimal_weight = recursive_search(
         0, [], [], best_weight_so_far, tokens, token_weights, get_path_weight
     )
+    assert optimal_path, "No valid path found"
     assert len(optimal_path) == len(tokens), (
         f"Expected optimal path length {len(tokens)}, got {len(optimal_path)}"
     )
+    assert optimal_weight < float("inf"), "No valid path found"
     return "".join([c for c in optimal_path if c != "-"])

@@ -55,13 +55,16 @@ def most_common_bary(counter: Counter[str]) -> str:
         return ""
 
 
-def string_barycenter(words: List[str], weights: Optional[List[float]] = None) -> str:
+def string_barycenter(
+    words: List[str], weights: Optional[List[float]] = None, use_heuristic: bool = False
+) -> str:
     """
     Compute the barycenter (weighted average) of a list of aligned words.
 
     Args:
         words: List of words to compute barycenter for
         weights: Optional weights for each word (defaults to equal weights)
+        use_heuristic: If True, uses a heuristic to gain time
 
     Returns:
         Barycenter string
@@ -94,18 +97,42 @@ def string_barycenter(words: List[str], weights: Optional[List[float]] = None) -
         bary = ""
         tokens = []
         token_weights = []
-        for chars in aligned:
-            counter: Counter[str] = Counter()
-            for char, weight in zip(chars, weights):
-                counter[char] += weight  # type: ignore
 
-            tokens.append(tuple(counter.keys()))
-            # token weight is a "distance", so we make this 1-counter value
-            token_weights.append(tuple(1 - val for val in counter.values()))
+        def compute_bary(aligned, weights, use_heuristic):
+            nonlocal tokens, token_weights
+            tokens = []
+            token_weights = []
+            for chars in aligned:
+                counter: Counter[str] = Counter()
+                for char, weight in zip(chars, weights):
+                    counter[char] += weight  # type: ignore
 
-            # bary += most_common_bary(counter)
+                if use_heuristic:
+                    most_common = counter.most_common(3)
+                    chars_ = [most_common[0][0]]
+                    weights_ = [1 - most_common[0][1]]
+                    for char, val in most_common[1:]:
+                        if val > 0.05:
+                            chars_.append(char)
+                            weights_.append(1 - val)
+                    tokens.append(chars_)
+                    token_weights.append(weights_)
+                else:
+                    tokens.append(list(counter.keys()))
+                    token_weights.append([1 - val for val in counter.values()])
+            return sample_tokens(tokens, token_weights, path_pronounciability_weight)
 
-        bary = sample_tokens(tokens, token_weights, path_pronounciability_weight)
+        try:
+            bary = compute_bary(aligned, weights, use_heuristic)
+        except Exception as e:
+            if use_heuristic:
+                # Sometimes, heuristic can lead to infeasible path (e.g. 3 vowels in a row, ...)
+                logger.warning(
+                    f"Heuristic barycenter failed with error: {e}. Retrying without heuristic."
+                )
+                bary = compute_bary(aligned, weights, False)
+            else:
+                raise
 
         logger.debug(f"Computed barycenter: '{bary}' from words {words}")
         return bary
