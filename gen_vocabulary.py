@@ -9,7 +9,6 @@ unpronounceable sequences.
 import itertools
 from typing import Dict, List, Set
 
-import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
