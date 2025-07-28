@@ -56,7 +56,8 @@ def most_common_bary(counter: Counter[str]) -> str:
         return ""
 
 
-HEURISTICS = [(3, 0.05), (7, 0.01), (15, 0.0), False]
+HEURISTICS = [(3, 0.05), (5, 0.01), (7, 0.0)]
+# HEURISTICS = [(3, 0.05), (7, 0.01), (15, 0.0), False]
 
 
 def string_barycenter(
@@ -130,7 +131,7 @@ def string_barycenter(
     bary = ""
     for heuristic in HEURISTICS:
         try:
-            bary = compute_bary(aligned, weights, heuristic if heuristic else False)
+            bary = compute_bary(aligned, weights, heuristic)
             break
         except Exception as e:
             if heuristic:
@@ -139,7 +140,6 @@ def string_barycenter(
                 )
             else:
                 logger.error(f"Failed to compute barycenter without heuristic: {e}")
-                bary = ""
 
     logger.debug(f"Computed barycenter: '{bary}' from words {words}")
 
