@@ -56,7 +56,7 @@ def most_common_bary(counter: Counter[str]) -> str:
         return ""
 
 
-HEURISTICS = [(3, 0.05), (5, 0.01), (7, 0.0)]
+HEURISTICS = [(3, 0.05), (4, 0.01), (5, 0.0)]
 # HEURISTICS = [(3, 0.05), (7, 0.01), (15, 0.0), False]
 
 

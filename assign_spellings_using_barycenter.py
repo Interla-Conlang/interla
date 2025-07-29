@@ -9,7 +9,7 @@ from multiple languages.
 
 import os
 import pickle
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 from tqdm.contrib.concurrent import process_map
 
@@ -17,6 +17,10 @@ from assign_spellings_common import step_1
 from logging_config import logger
 from str_barycenter import string_barycenter
 from utils import IPA_TO_INTERLA
+
+# Global variables that will be initialized in each worker process
+_all_y2normWord: Dict[str, Dict[int, str]] = {}
+_LANG_WEIGHTS: Dict[str, float] = {}
 
 
 def compute_token(args: Tuple[int, Dict[str, int]]) -> Tuple[str, int]:
@@ -35,59 +39,40 @@ def compute_token(args: Tuple[int, Dict[str, int]]) -> Tuple[str, int]:
     """
     int_anon_token, assoc_words = args
 
-    # Access global variables (available in multiprocessing context)
-    global all_y2normWord, LANG_WEIGHTS
-
-    logger.debug(f"Computing token for anonymous token {int_anon_token}")
+    # Use global variables
+    global _all_y2normWord, _LANG_WEIGHTS
 
     # Get the words and their corresponding weights
-    words: List[str] = []
-    weights: List[float] = []
+    words = []
+    weights = []
 
     for lang, w_id in assoc_words.items():
-        word = all_y2normWord[lang].get(w_id, "")
+        word = _all_y2normWord[lang].get(w_id, "")
         if word:  # Only include non-empty words
             words.append(word)
-            weights.append(LANG_WEIGHTS[lang])
-
-    logger.debug(f"Token {int_anon_token}: found {len(words)} valid words")
+            weights.append(_LANG_WEIGHTS[lang])
 
     # Compute barycenter based on number of words
     if len(words) == 0:
-        logger.debug(f"No valid words for token {int_anon_token}")
         int_ipa_token = ""
     elif len(words) == 1:
-        logger.debug(f"Single word for token {int_anon_token}: {words[0]}")
         int_ipa_token = words[0]
     else:
-        logger.debug(f"Computing barycenter for {len(words)} words")
-        try:
-            int_ipa_token = string_barycenter(words, weights)
-            logger.debug(f"Barycenter result: {int_ipa_token}")
-        except Exception as e:
-            logger.warning(
-                f"Failed to compute barycenter for token {int_anon_token}: {e}"
-            )
-            int_ipa_token = ""
+        int_ipa_token = string_barycenter(words, weights, use_heuristic=True)
 
     # Convert from IPA to Interla orthography
     int_orth_token = ""
     if int_ipa_token:
-        try:
-            int_orth_token = "".join(IPA_TO_INTERLA[char] for char in int_ipa_token)
-            logger.debug(
-                f"Converted IPA '{int_ipa_token}' to orthography '{int_orth_token}'"
-            )
-        except Exception as e:
-            logger.warning(
-                f"Failed to convert IPA to orthography for token {int_anon_token}: {e}"
-            )
-            int_orth_token = ""
+        int_orth_token = "".join(IPA_TO_INTERLA[char] for char in int_ipa_token)
 
     return int_orth_token, int_anon_token
 
 
-def load_or_compute_vocabulary() -> Dict[str, int]:
+def load_or_compute_vocabulary(
+    int_anon_tokens_coocurrences: Dict[int, Dict[str, int]],
+    all_y2normWord: Dict[str, Dict[int, str]],
+    LANG_WEIGHTS: Dict[str, float],
+) -> Dict[str, int]:
     """
     Load existing vocabulary or compute it using barycenter method.
 
@@ -112,23 +97,34 @@ def load_or_compute_vocabulary() -> Dict[str, int]:
 
     logger.debug("Computing new vocabulary using barycenter method")
 
-    # Access global variables
-    global int_anon_tokens_coocurrences
-
     vocab: Dict[str, int] = {}
 
     try:
         logger.debug(f"Processing {len(int_anon_tokens_coocurrences)} anonymous tokens")
-        results = process_map(
-            compute_token,
-            list(int_anon_tokens_coocurrences.items()),
-            desc="Computing Interla tokens using barycenter method",
-            # chunksize=1
-        )
 
-        # Process results
+        items_list = list(int_anon_tokens_coocurrences.items())
+
+        # Set global variables for the current process (will be inherited by workers)
+        global _all_y2normWord, _LANG_WEIGHTS
+        _all_y2normWord = all_y2normWord
+        _LANG_WEIGHTS = LANG_WEIGHTS
+
+        cpu_count = os.cpu_count() or 4
+        max_workers = min(cpu_count, 5)  # Problem is that I'm bound by memory
+        chunksize = max(1, len(items_list) // (max_workers * 50))
+
+        # Process all items and handle results incrementally to avoid memory buildup
+        vocab: Dict[str, int] = {}
         empty_tokens = 0
-        for int_orth_token, int_anon_token in results:
+
+        # Process results as they come in instead of storing them all
+        for int_orth_token, int_anon_token in process_map(
+            compute_token,
+            items_list,
+            desc="Computing Interla tokens using barycenter method",
+            max_workers=max_workers,
+            chunksize=chunksize,
+        ):
             if int_orth_token:  # Only include non-empty tokens
                 vocab[int_orth_token] = int_anon_token
             else:
@@ -159,7 +155,6 @@ def main() -> None:
         # Load anonymous tokens and associated data
         logger.debug("Loading anonymous tokens and language data")
 
-        global int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS
         int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS = (
             step_1()
         )
@@ -170,7 +165,9 @@ def main() -> None:
         logger.debug(f"Loaded weights for {len(LANG_WEIGHTS)} languages")
 
         # Load or compute vocabulary
-        load_or_compute_vocabulary()
+        load_or_compute_vocabulary(
+            int_anon_tokens_coocurrences, all_y2normWord, LANG_WEIGHTS
+        )
 
         logger.debug("Barycenter-based spelling assignment completed successfully")
 
