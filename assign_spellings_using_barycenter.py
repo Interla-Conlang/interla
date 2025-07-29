@@ -11,6 +11,7 @@ import os
 import pickle
 from typing import Dict, Tuple
 
+from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
 from assign_spellings_common import step_1
@@ -110,7 +111,7 @@ def load_or_compute_vocabulary(
         _LANG_WEIGHTS = LANG_WEIGHTS
 
         cpu_count = os.cpu_count() or 4
-        max_workers = min(cpu_count, 5)  # Problem is that I'm bound by memory
+        max_workers = min(cpu_count, 1)  # Problem is that I'm bound by memory
         chunksize = max(1, len(items_list) // (max_workers * 50))
 
         # Process all items and handle results incrementally to avoid memory buildup
@@ -118,12 +119,20 @@ def load_or_compute_vocabulary(
         empty_tokens = 0
 
         # Process results as they come in instead of storing them all
-        for int_orth_token, int_anon_token in process_map(
-            compute_token,
-            items_list,
-            desc="Computing Interla tokens using barycenter method",
-            max_workers=max_workers,
-            chunksize=chunksize,
+        for int_orth_token, int_anon_token in (
+            process_map(
+                compute_token,
+                items_list,
+                desc="Computing Interla tokens using barycenter method",
+                max_workers=max_workers,
+                chunksize=chunksize,
+            )
+            if max_workers > 1
+            else tqdm(
+                map(compute_token, items_list),
+                total=len(items_list),
+                desc="Computing Interla tokens using barycenter method",
+            )
         ):
             if int_orth_token:  # Only include non-empty tokens
                 vocab[int_orth_token] = int_anon_token
