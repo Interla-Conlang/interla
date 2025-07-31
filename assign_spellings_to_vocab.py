@@ -21,7 +21,7 @@ from scipy.optimize import linear_sum_assignment
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
-from assign_spellings_common import step_1
+from assign_spellings_common import get_data_from_opensub
 from logging_config import logger
 
 
@@ -285,8 +285,8 @@ def main() -> None:
         logger.debug(f"Processing top {N} tokens")
 
         global int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS
-        int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS = step_1(
-            N
+        int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS = (
+            get_data_from_opensub(N)
         )
 
         # Step 2: Calculate similarities

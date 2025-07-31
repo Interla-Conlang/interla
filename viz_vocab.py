@@ -9,7 +9,7 @@ import os
 import pickle
 from typing import Dict, List
 
-from assign_spellings_common import IPAProcessor, step_1
+from assign_spellings_common import IPAProcessor, get_data_from_opensub
 from constants import LANG_TO_EPITRAN
 from logging_config import logger
 from str_barycenter import align_words_list
@@ -31,8 +31,10 @@ def viz_vocab() -> None:
     """
     logger.debug("Starting vocabulary visualization")
 
-    logger.debug("Loading data from step_1")
-    int_anon_tokens_coocurrences, all_y2normWord, all_y2word, _ = step_1()
+    logger.debug("Loading data from opensub")
+    int_anon_tokens_coocurrences, all_y2normWord, all_y2word, _ = (
+        get_data_from_opensub()
+    )
     logger.debug(
         f"Loaded {len(int_anon_tokens_coocurrences)} anonymous token cooccurrences"
     )

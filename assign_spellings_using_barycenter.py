@@ -14,7 +14,7 @@ from typing import Dict, Tuple
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
-from assign_spellings_common import step_1
+from assign_spellings_common import get_data_from_opensub
 from logging_config import logger
 from str_barycenter import string_barycenter
 from utils import IPA_TO_INTERLA
@@ -165,7 +165,7 @@ def main() -> None:
         logger.debug("Loading anonymous tokens and language data")
 
         int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS = (
-            step_1()
+            get_data_from_opensub()
         )
 
         logger.debug(f"Loaded {len(int_anon_tokens_coocurrences)} anonymous tokens")
