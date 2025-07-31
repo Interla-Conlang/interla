@@ -22,7 +22,7 @@ def json_dumps(obj):
 
 
 # Pre-compile translation table for string cleaning
-IPA_CLEAN_TRANS = str.maketrans("\\/", "")
+IPA_CLEAN_TRANS = str.maketrans("", "", "\\/")
 
 KEYS_TO_DROP = {
     "lang",  # 'lang' = 'Français'
@@ -160,14 +160,9 @@ def process_jsonl(path: str) -> None:
 
     print(f"Processing {path}...")
 
-    # Count lines for progress bar
-    print("Counting lines...")
-    n = get_line_count_fast(path)
-    print(f"Found {n:,} lines")
-
     # Determine chunk size and number of workers
-    chunk_size = max(1000, n // (cpu_count() * 10))  # Adaptive chunk size
-    num_workers = min(cpu_count(), 8)  # Limit to 8 workers max
+    chunk_size = 50_000  # Fixed chunk size
+    num_workers = min(cpu_count(), 10)  # Limit to 10 workers max
 
     print(f"Using {num_workers} workers with chunk size {chunk_size}")
 
@@ -189,7 +184,7 @@ def process_jsonl(path: str) -> None:
                 chunk = []
 
                 # Use tqdm for progress tracking
-                with tqdm(total=n, desc="Processing lines") as pbar:
+                with tqdm(desc="Processing lines") as pbar:
                     for line in input_file:
                         chunk.append(line)
 
