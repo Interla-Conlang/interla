@@ -6,3 +6,5 @@ __pycache__
 TODO.md
 .vscode/launch.json
 data/frequencies/downloads/
+data/wiktionary/*.jsonl
+data/wiktionary/*.gz
