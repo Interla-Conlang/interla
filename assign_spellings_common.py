@@ -393,6 +393,16 @@ def get_data_from_wiktionary() -> Tuple[
     LANG_WEIGHTS = defaultdict(lambda: min_weight, LANG_WEIGHTS)
     logger.debug(f"Loaded weights for {len(LANG_WEIGHTS)} languages")
 
+    if os.path.exists("output/wikt/wikt.pkl"):
+        with open("output/wikt/wikt.pkl", "rb") as f:
+            int_anon_tokens_coocurrences, all_y2normWord, all_y2word = pickle.load(f)
+            return (
+                int_anon_tokens_coocurrences,
+                all_y2normWord,
+                all_y2word,
+                LANG_WEIGHTS,
+            )
+
     logger.debug("Initializing data structures")
     int_anon_tokens_coocurrences: Dict[
         int, Dict[str, int]
@@ -438,6 +448,7 @@ def get_data_from_wiktionary() -> Tuple[
     # Load `kaikki.org-dictionary-all-words.light.jsonl`
     jsonl_path = "data/wiktionary/kaikki.org-dictionary-all-words.light.jsonl"
     with open(jsonl_path, "r", encoding="utf-8") as f:
+        # TODO: multiprocess
         for line in tqdm(f):
             data = json.loads(line)
 
@@ -471,9 +482,9 @@ def get_data_from_wiktionary() -> Tuple[
 
                 # TODO: this is a bit too much... sometimes we have the IPA so we don't care if epitran does not work, right?
                 if trans_lang not in ALL_EPITRAN_VALID_LANGUAGES:
-                    logger.warning(f"{trans_lang} language not supported by Epitran")
+                    # logger.warning(f"{trans_lang} language not supported by Epitran")
                     continue
-                
+
                 trans_word = trans.get("word", "")
 
                 # TODO: for now we never override. BUT what if multiple values for same language? make a list?
@@ -482,6 +493,9 @@ def get_data_from_wiktionary() -> Tuple[
                     coocurrences[trans_lang] = trans_y_id
 
             int_anon_tokens_coocurrences[x_id] = coocurrences
+
+    with open("output/wikt/wikt.pkl", "wb") as f:
+        pickle.dump((int_anon_tokens_coocurrences, all_y2normWord, all_y2word), f)
 
     return int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS
 
@@ -510,7 +524,7 @@ def get_all_ipa_from_normWords(all_y2normWord: Dict[str, Dict[int, str]]) -> Cou
 
 def main() -> None:
     try:
-        _, all_y2normWord, all_y2word, LANG_WEIGHTS = get_data_from_opensub()
+        _, all_y2normWord, all_y2word, LANG_WEIGHTS = get_data_from_wiktionary()
         all_ipa = get_all_ipa_from_normWords(all_y2normWord)
 
         # Show the most common IPA characters

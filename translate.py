@@ -4,7 +4,7 @@ import os
 import pickle
 from typing import Dict
 
-from assign_spellings_common import get_data_from_opensub
+from assign_spellings_common import get_data_from_wiktionary
 
 
 def load_vocab(vocab_path: str) -> Dict[str, int]:
@@ -45,7 +45,7 @@ def main():
     parser.add_argument("-t", "--text", required=True, help="Text to translate")
     args = parser.parse_args()
 
-    int_anon_tokens_cooccurrences, _, all_y2word, _ = get_data_from_opensub()
+    int_anon_tokens_cooccurrences, _, all_y2word, _ = get_data_from_wiktionary()
     interla_vocab_path = "output/interla_vocab.pkl"
     if not os.path.exists(interla_vocab_path):
         print(f"Interla vocabulary file not found at {interla_vocab_path}")

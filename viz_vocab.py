@@ -9,7 +9,7 @@ import os
 import pickle
 from typing import Dict, List
 
-from assign_spellings_common import IPAProcessor, get_data_from_opensub
+from assign_spellings_common import IPAProcessor, get_data_from_wiktionary
 from constants import LANG_TO_EPITRAN
 from logging_config import logger
 from str_barycenter import align_words_list
@@ -33,7 +33,7 @@ def viz_vocab() -> None:
 
     logger.debug("Loading data from opensub")
     int_anon_tokens_coocurrences, all_y2normWord, all_y2word, _ = (
-        get_data_from_opensub()
+        get_data_from_wiktionary()
     )
     logger.debug(
         f"Loaded {len(int_anon_tokens_coocurrences)} anonymous token cooccurrences"

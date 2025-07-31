@@ -75,21 +75,25 @@ jsonl_paths = [
 
 
 def process_jsonl(path: str) -> None:
-    light_jsonl_path = path.replace(".jsonl", ".light.jsonl")
+    if path.endswith(".gz"):
+        jsonl_path = path[:-3]
+    else:
+        jsonl_path = path
+    light_jsonl_path = jsonl_path.replace(".jsonl", ".light.jsonl")
+
     if os.path.exists(light_jsonl_path):
         print(f"Skipping {path}, already processed.")
         return
 
     # First unzip the file using a shell command
     if path.endswith(".gz"):
-        jsonl_path = path[:-3]
         if not os.path.exists(jsonl_path):
             subprocess.run(["gunzip", path], check=True)
-    else:
-        jsonl_path = path
+    # TODO: this deletes the original file, but we might want to keep it...
 
     n = int(subprocess.check_output(["wc", "-l", jsonl_path]).split()[0])
 
+    # TODO: do not unzip the file, open it directly with gzip
     with (
         open(jsonl_path, "r", encoding="utf-8") as f,
         open(light_jsonl_path, "w", encoding="utf-8") as out_f,
@@ -111,25 +115,32 @@ def process_jsonl(path: str) -> None:
             #     ))
             # TODO: for the moment we only keep first IPA value
             if "sounds" in filtered_data:
-                filtered_data["ipa"] = [
-                    sound["ipa"].replace("\\", "")
+                ipa = [
+                    sound["ipa"].replace("\\", "").replace("/", "")
                     for sound in filtered_data["sounds"]
                     if "ipa" in sound
                 ][:1]
-                if not filtered_data["ipa"]:
-                    del filtered_data["ipa"]
+                if ipa:
+                    filtered_data["ipa"] = ipa[0]
+                del filtered_data["sounds"]
 
             # Keep only 'lang_code', 'word', 'sense', 'sense_index', and 'tags' for translations
             if "translations" in filtered_data:
-                filtered_data["translations"] = [
-                    {
-                        "lang_code": trans.get("lang_code"),
-                        "word": trans.get("word"),
-                        "sense_index": trans.get("sense_index"),
-                        "tags": trans.get("tags"),  # neuter, feminine, masculine, etc.
-                    }
-                    for trans in filtered_data["translations"]
-                ]
+                ts = []
+                for t in filtered_data["translations"]:
+                    d = {}
+                    if "lang_code" in t:
+                        d["lang_code"] = t["lang_code"]
+                    elif "code" in t:
+                        d["lang_code"] = t["code"]
+                    if "word" in t:
+                        d["word"] = t["word"]
+                    if "sense_index" in t:
+                        d["sense_index"] = t["sense_index"]
+                    if "tags" in t:
+                        d["tags"] = t["tags"]  # neuter, feminine, masculine, etc.
+                    ts.append(d)
+                filtered_data["translations"] = ts
 
             # In synonyms, keep only 'word'
             if "synonyms" in filtered_data:
@@ -198,8 +209,8 @@ def process_jsonl(path: str) -> None:
             #         known_keys.add(key)
 
     # Delete the original JSONL file if it was gzipped
-    if path.endswith(".gz"):
-        os.remove(jsonl_path)
+    # if path.endswith(".gz"):
+    #     os.remove(jsonl_path)
 
 
 if __name__ == "__main__":

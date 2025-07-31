@@ -14,7 +14,7 @@ from typing import Dict, Tuple
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
-from assign_spellings_common import get_data_from_opensub
+from assign_spellings_common import get_data_from_wiktionary
 from logging_config import logger
 from str_barycenter import string_barycenter
 from utils import IPA_TO_INTERLA
@@ -53,6 +53,10 @@ def compute_token(args: Tuple[int, Dict[str, int]]) -> Tuple[str, int]:
             words.append(word)
             weights.append(_LANG_WEIGHTS[lang])
 
+    # Skip barycenter computation
+    if len(words) < 2:
+        return "", int_anon_token
+    
     # Compute barycenter based on number of words
     if len(words) == 0:
         int_ipa_token = ""
@@ -111,7 +115,7 @@ def load_or_compute_vocabulary(
         _LANG_WEIGHTS = LANG_WEIGHTS
 
         cpu_count = os.cpu_count() or 4
-        max_workers = min(cpu_count, 8)  # Problem is that I'm bound by memory
+        max_workers = min(cpu_count, 1)  # Problem is that I'm bound by memory
         chunksize = max(1, len(items_list) // (max_workers * 50))
 
         # Process all items and handle results incrementally to avoid memory buildup
@@ -165,7 +169,7 @@ def main() -> None:
         logger.debug("Loading anonymous tokens and language data")
 
         int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS = (
-            get_data_from_opensub()
+            get_data_from_wiktionary()
         )
 
         logger.debug(f"Loaded {len(int_anon_tokens_coocurrences)} anonymous tokens")

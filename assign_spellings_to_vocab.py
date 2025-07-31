@@ -21,7 +21,7 @@ from scipy.optimize import linear_sum_assignment
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
-from assign_spellings_common import get_data_from_opensub
+from assign_spellings_common import get_data_from_wiktionary
 from logging_config import logger
 
 
@@ -286,7 +286,7 @@ def main() -> None:
 
         global int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS
         int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS = (
-            get_data_from_opensub(N)
+            get_data_from_wiktionary(N)
         )
 
         # Step 2: Calculate similarities

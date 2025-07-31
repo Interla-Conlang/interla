@@ -13,7 +13,7 @@ from docx.shared import Inches
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
-from assign_spellings_common import get_data_from_opensub
+from assign_spellings_common import get_data_from_wiktionary
 from lan_freqs import FREQ_DICT
 from logging_config import logger
 from utils import ALL_VALID_LANGUAGES, INTERLA_TO_IPA, LANG_WEIGHTS
@@ -154,7 +154,7 @@ def gen_single_dictionary(language_code: str) -> None:
 
     # Load data
     int_anon_tokens_coocurrences, all_y2normWord, all_y2word, _ = (
-        get_data_from_opensub()
+        get_data_from_wiktionary()
     )
 
     interla_vocab_path = "output/interla_vocab.pkl"
@@ -227,7 +227,7 @@ def gen_dictionaries() -> None:
     logger.info("Starting dictionary generation with parallel processing...")
 
     # Load data once in the main process
-    int_anon_tokens_cooccurrences, _, all_y2word, _ = get_data_from_opensub()
+    int_anon_tokens_cooccurrences, _, all_y2word, _ = get_data_from_wiktionary()
 
     interla_vocab_path = "output/interla_vocab.pkl"
     if not os.path.exists(interla_vocab_path):
