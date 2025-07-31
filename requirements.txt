@@ -4,3 +4,4 @@ pythainlp
 levenshtein
 epitran
 numba
+orjson
