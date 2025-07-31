@@ -1,4 +1,5 @@
 import os
+
 import requests
 
 """
@@ -69,10 +70,14 @@ URLS = {
         "zh_tw",
     ]
 }
+rename = {"zh": "zh_cn"}
+
 output_dir = os.path.join(os.path.dirname(__file__), "downloads")
 os.makedirs(output_dir, exist_ok=True)
 
 for lang, url in URLS.items():
+    if lang in rename:
+        lang = rename[lang]
     out_path = os.path.join(output_dir, f"{lang}.txt")
     print(f"Downloading {lang} from {url}...")
     response = requests.get(url)

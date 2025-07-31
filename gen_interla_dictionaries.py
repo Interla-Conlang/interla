@@ -14,8 +14,9 @@ from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
 from assign_spellings_common import step_1
+from lan_freqs import FREQ_DICT
 from logging_config import logger
-from utils import ALL_VALID_LANGUAGES, INTERLA_TO_IPA
+from utils import ALL_VALID_LANGUAGES, INTERLA_TO_IPA, LANG_WEIGHTS
 
 
 def interla_to_ipa(interla_word: str) -> str:
@@ -75,16 +76,16 @@ def create_three_column_section(doc, entries: List[Tuple[str, str, str]]):
         p = doc.add_paragraph()
 
         # Add word in bold
-        run = p.add_run(word)
-        run.bold = True
+        run = p.add_run(word)  # FIXME: 13% of time
+        run.bold = True  # FIXME: 23% of time
 
         # Add IPA if provided (on same line, in italics)
         if ipa:
             ipa_run = p.add_run(f" /{ipa}/")
-            ipa_run.italic = True
+            ipa_run.italic = True  # FIXME: 10% of time
 
         # Add translation on new line
-        p.add_run(f"\n{translation}")
+        p.add_run(f"\n{translation}")  # FIXME: 20% of time
 
         # Add paragraph spacing for better readability
         p.space_after = Inches(0.08)
@@ -171,15 +172,17 @@ def gen_single_dictionary(language_code: str) -> None:
 
     y2word = all_y2word[language_code]
 
+    freq_dict = FREQ_DICT[language_code] if language_code in FREQ_DICT else None
     for int_orth_token, int_anon_token in vocab.items():
         assoc_words = int_anon_tokens_coocurrences.get(int_anon_token, {})
         if language_code in assoc_words:
             y_id = assoc_words[language_code]
             word = y2word[y_id]
 
-            # Store both directions
-            lang_to_interla[word] = int_orth_token
-            interla_to_lang[int_orth_token] = word
+            if freq_dict is None or word in freq_dict:
+                # Store both directions
+                lang_to_interla[word] = int_orth_token
+                interla_to_lang[int_orth_token] = word
 
     if lang_to_interla:
         logger.info(
@@ -224,7 +227,14 @@ def gen_dictionaries() -> None:
     logger.info("Preparing dictionary data for all languages...")
     dictionary_args = []
 
-    for dict_lang in tqdm(ALL_VALID_LANGUAGES, desc="Preparing data"):
+    # Sort ALL_VALID_LANGUAGES by language weight (descending)
+    sorted_langs = sorted(
+        ALL_VALID_LANGUAGES,
+        key=lambda lang: LANG_WEIGHTS.get(lang, 0),
+        reverse=True,
+    )
+    for dict_lang in tqdm(sorted_langs, desc="Preparing data"):
+        dict_lang = "fr"
         # Build dictionaries for this language
         lang_to_interla = {}  # Original language -> Interla
         interla_to_lang = {}  # Interla -> Original language
@@ -233,17 +243,20 @@ def gen_dictionaries() -> None:
             logger.warning(f"Language {dict_lang} not found in available languages")
             continue
         y2word = all_y2word[dict_lang]
-
+        freq_dict = FREQ_DICT[dict_lang] if dict_lang in FREQ_DICT else None
         for int_orth_token, int_anon_token in vocab.items():
             assoc_words = int_anon_tokens_cooccurrences.get(int_anon_token, {})
             if dict_lang in assoc_words:
                 y_id = assoc_words[dict_lang]
                 word = y2word[y_id]
 
-                # Store both directions
-                # TODO: there can be conflicts (multiple translations)
-                lang_to_interla[word] = int_orth_token
-                interla_to_lang[int_orth_token] = word
+                if (
+                    freq_dict is None or word.lower() in freq_dict
+                ):  # restrict to frequent words
+                    # Store both directions
+                    # TODO: there can be conflicts (multiple translations)
+                    lang_to_interla[word] = int_orth_token
+                    interla_to_lang[int_orth_token] = word
 
         # Add to arguments list for parallel processing
         dictionary_args.append((lang_to_interla, interla_to_lang, dict_lang))
