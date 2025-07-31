@@ -31,7 +31,7 @@ def build_lang_to_interla(
 
 def translate_text(text: str, lang_to_interla: Dict[str, str]) -> str:
     words = text.strip().split()
-    translated = [lang_to_interla.get(word, word) for word in words]
+    translated = [lang_to_interla.get(word, f"[{word}]") for word in words]
     return " ".join(translated)
 
 
