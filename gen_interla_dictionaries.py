@@ -42,7 +42,7 @@ def interla_to_ipa(interla_word: str) -> str:
     return "".join(ipa_chars)
 
 
-def create_three_column_section(doc, entries: List[Tuple[str, str, str]]):
+def create_three_column_section(doc, entries: List[Tuple[str, str, List[str]]]):
     """Create entries using Word's built-in 3-column layout for continuous text flow."""
     if not entries:
         return
@@ -72,7 +72,7 @@ def create_three_column_section(doc, entries: List[Tuple[str, str, str]]):
     sectPr.append(cols_element)
 
     # Add all entries as continuous paragraphs
-    for word, ipa, translation in tqdm(entries, desc="Adding entries"):
+    for word, ipa, translations in tqdm(entries, desc="Adding entries"):
         p = doc.add_paragraph()
 
         # Add word in bold
@@ -84,15 +84,18 @@ def create_three_column_section(doc, entries: List[Tuple[str, str, str]]):
             ipa_run = p.add_run(f" /{ipa}/")
             ipa_run.italic = True  # FIXME: 10% of time
 
-        # Add translation on new line
-        p.add_run(f"\n{translation}")  # FIXME: 20% of time
+        # Add translations on new line (join multiple translations with commas)
+        translation_text = ", ".join(translations)
+        p.add_run(f"\n{translation_text}")  # FIXME: 20% of time
 
         # Add paragraph spacing for better readability
         p.space_after = Inches(0.08)
 
 
 def create_dictionary_docx(
-    lang_to_interla: Dict[str, str], interla_to_lang: Dict[str, str], language_code: str
+    lang_to_interla: Dict[str, List[str]],
+    interla_to_lang: Dict[str, List[str]],
+    language_code: str,
 ) -> None:
     """Create a DOCX dictionary for a specific language."""
     doc = Document()
@@ -106,9 +109,9 @@ def create_dictionary_docx(
 
     # Sort entries alphabetically by original language word
     lang_entries = []
-    for orig_word, interla_word in sorted(lang_to_interla.items()):
+    for orig_word, interla_words in sorted(lang_to_interla.items()):
         ipa = ""  # Original language words don't have IPA in this context
-        lang_entries.append((orig_word, ipa, interla_word))
+        lang_entries.append((orig_word, ipa, interla_words))
 
     if lang_entries:
         create_three_column_section(doc, lang_entries)
@@ -130,9 +133,9 @@ def create_dictionary_docx(
 
     # Sort entries alphabetically by Interla word
     interla_entries = []
-    for interla_word, orig_word in sorted(interla_to_lang.items()):
+    for interla_word, orig_words in sorted(interla_to_lang.items()):
         ipa = interla_to_ipa(interla_word)
-        interla_entries.append((interla_word, ipa, orig_word))
+        interla_entries.append((interla_word, ipa, orig_words))
 
     if interla_entries:
         create_three_column_section(doc, interla_entries)
@@ -167,8 +170,8 @@ def gen_single_dictionary(language_code: str) -> None:
         return
 
     # Build dictionaries for this language
-    lang_to_interla = {}  # Original language -> Interla
-    interla_to_lang = {}  # Interla -> Original language
+    lang_to_interla = {}  # Original language -> List[Interla]
+    interla_to_lang = {}  # Interla -> List[Original language]
 
     y2word = all_y2word[language_code]
 
@@ -180,9 +183,16 @@ def gen_single_dictionary(language_code: str) -> None:
             word = y2word[y_id]
 
             if freq_dict is None or word in freq_dict:
-                # Store both directions
-                lang_to_interla[word] = int_orth_token
-                interla_to_lang[int_orth_token] = word
+                # Store both directions, handling multiple translations
+                if word not in lang_to_interla:
+                    lang_to_interla[word] = []
+                if int_orth_token not in lang_to_interla[word]:
+                    lang_to_interla[word].append(int_orth_token)
+
+                if int_orth_token not in interla_to_lang:
+                    interla_to_lang[int_orth_token] = []
+                if word not in interla_to_lang[int_orth_token]:
+                    interla_to_lang[int_orth_token].append(word)
 
     if lang_to_interla:
         logger.info(
@@ -193,7 +203,9 @@ def gen_single_dictionary(language_code: str) -> None:
         logger.warning(f"No entries found for language: {language_code}")
 
 
-def create_dictionary_worker(args: Tuple[Dict[str, str], Dict[str, str], str]) -> str:
+def create_dictionary_worker(
+    args: Tuple[Dict[str, List[str]], Dict[str, List[str]], str],
+) -> str:
     """Worker function to create a dictionary DOCX file for parallel processing."""
     lang_to_interla, interla_to_lang, dict_lang = args
 
@@ -234,10 +246,9 @@ def gen_dictionaries() -> None:
         reverse=True,
     )
     for dict_lang in tqdm(sorted_langs, desc="Preparing data"):
-        dict_lang = "fr"
         # Build dictionaries for this language
-        lang_to_interla = {}  # Original language -> Interla
-        interla_to_lang = {}  # Interla -> Original language
+        lang_to_interla = {}  # Original language -> List[Interla]
+        interla_to_lang = {}  # Interla -> List[Original language]
 
         if dict_lang not in all_y2word:
             logger.warning(f"Language {dict_lang} not found in available languages")
@@ -253,10 +264,16 @@ def gen_dictionaries() -> None:
                 if (
                     freq_dict is None or word.lower() in freq_dict
                 ):  # restrict to frequent words
-                    # Store both directions
-                    # TODO: there can be conflicts (multiple translations)
-                    lang_to_interla[word] = int_orth_token
-                    interla_to_lang[int_orth_token] = word
+                    # Store both directions, handling multiple translations
+                    if word not in lang_to_interla:
+                        lang_to_interla[word] = []
+                    if int_orth_token not in lang_to_interla[word]:
+                        lang_to_interla[word].append(int_orth_token)
+
+                    if int_orth_token not in interla_to_lang:
+                        interla_to_lang[int_orth_token] = []
+                    if word not in interla_to_lang[int_orth_token]:
+                        interla_to_lang[int_orth_token].append(word)
 
         # Add to arguments list for parallel processing
         dictionary_args.append((lang_to_interla, interla_to_lang, dict_lang))
