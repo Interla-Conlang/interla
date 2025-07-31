@@ -111,7 +111,7 @@ def load_or_compute_vocabulary(
         _LANG_WEIGHTS = LANG_WEIGHTS
 
         cpu_count = os.cpu_count() or 4
-        max_workers = min(cpu_count, 1)  # Problem is that I'm bound by memory
+        max_workers = min(cpu_count, 8)  # Problem is that I'm bound by memory
         chunksize = max(1, len(items_list) // (max_workers * 50))
 
         # Process all items and handle results incrementally to avoid memory buildup
