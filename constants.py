@@ -67,3 +67,5 @@ LANG_TO_EPITRAN: Dict[str, Optional[str]] = {
     "pt": "por-Latn",  # Portuguese
     "he": None,  # No match (Hebrew: "heb-Hebr" not in Epitran list)
 }
+
+ALL_EPITRAN_VALID_LANGUAGES = {k for k, v in LANG_TO_EPITRAN.items() if v is not None}
