@@ -3,10 +3,8 @@ Download and preprocess (to reduce filesize) JSONL file extracted from Wiktionar
 """
 
 import gzip
-import json
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from functools import partial
 from multiprocessing import cpu_count
 
 import orjson
@@ -147,12 +145,11 @@ def get_line_count_fast(file_path: str) -> int:
         with open(file_path, "r", encoding="utf-8") as f:
             return sum(1 for _ in f)
 
+# TODO: still quite slow, multiprocessing does not really help (4:00)
 
 def process_jsonl(path: str) -> None:
     """Process JSONL file with multiprocessing and optimizations."""
-    light_jsonl_path = path.replace(".jsonl.gz", ".light.jsonl").replace(
-        ".jsonl", ".light.jsonl"
-    )
+    light_jsonl_path = path.replace(".jsonl.gz", ".light.jsonl")
 
     if os.path.exists(light_jsonl_path):
         print(f"Skipping {path}, already processed.")
@@ -161,7 +158,7 @@ def process_jsonl(path: str) -> None:
     print(f"Processing {path}...")
 
     # Determine chunk size and number of workers
-    chunk_size = 50_000  # Fixed chunk size
+    chunk_size = 125_000  # Fixed chunk size
     num_workers = min(cpu_count(), 10)  # Limit to 10 workers max
 
     print(f"Using {num_workers} workers with chunk size {chunk_size}")
