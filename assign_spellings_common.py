@@ -12,6 +12,7 @@ Abbreviations:
 """
 
 import glob
+import json
 import os
 import pickle
 import unicodedata
@@ -23,9 +24,9 @@ import pandas as pd
 from tqdm import tqdm
 from tqdm.contrib.concurrent import thread_map
 
-from constants import LANG_TO_EPITRAN
+from constants import ALL_EPITRAN_VALID_LANGUAGES, LANG_TO_EPITRAN
 from logging_config import logger
-from utils import get_lang_weights
+from utils import ALL_VALID_LANGUAGES, get_lang_weights
 
 # logger.debug("Downloading cedict data")
 # from epitran.download import cedict
@@ -143,6 +144,21 @@ class IPAProcessor:
             logger.warning(f"Failed to process string '{s}': {e}")
             return ""
 
+    def process_ipa(self, raw_ipa: str) -> str:
+        """
+        Process an IPA string.
+
+        Args:
+            raw_ipa: Input IPA string to process
+
+        Returns:
+            Processed IPA string with replacements applied
+        """
+        filtered_ipa = "".join(self.ipa_replace(char) for char in raw_ipa)
+        logger.debug(f"Filtered IPA: {filtered_ipa}")
+
+        return filtered_ipa
+
 
 def process_str(s: str) -> str:
     """
@@ -189,7 +205,7 @@ def process_chunk(lang2: str, chunk: List[str]) -> List[str]:
 os.makedirs("output/ipa", exist_ok=True)
 
 
-def step_1(
+def get_data_from_opensub(
     N: Optional[int] = None,
 ) -> Tuple[
     Dict[int, Dict[str, int]],
@@ -219,7 +235,7 @@ def step_1(
     Raises:
         FileNotFoundError: If required data files are not found
     """
-    logger.debug("Starting step_1 data processing")
+    logger.debug("Starting data processing")
     # FIXME: ~30s long
 
     # 1. Load all pkl files from data/translations/downloads/xx-yy.pkl if yy is "et"
@@ -340,6 +356,136 @@ def step_1(
     return int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS
 
 
+def get_data_from_wiktionary() -> Tuple[
+    Dict[int, Dict[str, int]],
+    Dict[str, Dict[int, str]],
+    Dict[str, Dict[int, str]],
+    Dict[str, float],
+]:
+    """
+    Load and process wiktionary data.
+
+    This function performs the first step of the pipeline by:
+    1. Loading wiktionary data
+    2. Processing words that do not have IPA yet
+    3. Building cooccurrence mappings
+    4. Assigning ids to words
+    5. Caching processed results
+
+    Args:
+        N: Optional limit on number of records to process per language
+
+    Returns:
+        Tuple containing:
+            - int_anon_tokens_coocurrences: Mapping of token IDs to language-word associations
+            - all_y2normWord: Mapping of language to word ID to normalized word
+            - all_y2word: Mapping of language to word ID to original word
+            - LANG_WEIGHTS: Language weights dictionary
+
+    Raises:
+        FileNotFoundError: If required data files are not found
+    """
+    logger.debug("Starting data processing")
+
+    logger.debug("Loading language weights")
+    _, LANG_WEIGHTS = get_lang_weights()
+    min_weight = min(LANG_WEIGHTS.values())
+    LANG_WEIGHTS = defaultdict(lambda: min_weight, LANG_WEIGHTS)
+    logger.debug(f"Loaded weights for {len(LANG_WEIGHTS)} languages")
+
+    logger.debug("Initializing data structures")
+    int_anon_tokens_coocurrences: Dict[
+        int, Dict[str, int]
+    ] = {}  # 156: {"fi": 159, "sv": 8}
+    all_y2normWord: Dict[str, Dict[int, str]] = {}  # To collect all y2word mappings
+    all_y2word: Dict[str, Dict[int, str]] = {}  # To collect all y2word mappings
+    all_word2x: Dict[str, int] = {}  # To collect all word2x mappings
+    all_word2y: Dict[str, int] = {}  # To collect all word2y mappings
+
+    # Create all IPAProcessors
+    ipa_processors = {}
+
+    def add_word(word: str, lang_code: str, ipa: Optional[str] = None) -> int:
+        # Get the word ID for this language
+        if word in all_word2y:
+            y_id = all_word2y[word]
+        else:
+            y_id = len(all_word2y)
+            all_word2y[word] = y_id
+
+        # Add word to all_y2word
+        all_y2word.setdefault(lang_code, {})
+        if y_id not in all_y2word[lang_code]:
+            all_y2word[lang_code][y_id] = word
+
+        # Add word to all_y2normWord
+        all_y2normWord.setdefault(lang_code, {})
+        if y_id not in all_y2normWord[lang_code]:
+            if lang_code in ipa_processors:
+                ipa_processor = ipa_processors[lang_code]
+            else:
+                ipa_processor = IPAProcessor(lang_code)
+                ipa_processors[lang_code] = ipa_processor
+            # If IPA does not exist, add it using the IPAProcessor
+            if ipa:
+                normWord = ipa_processor.process_ipa(ipa)
+            else:
+                normWord = ipa_processor.process_str(word)
+            all_y2normWord[lang_code][y_id] = normWord
+
+        return y_id
+
+    # Load `kaikki.org-dictionary-all-words.light.jsonl`
+    jsonl_path = "data/wiktionary/kaikki.org-dictionary-all-words.light.jsonl"
+    with open(jsonl_path, "r", encoding="utf-8") as f:
+        for line in tqdm(f):
+            data = json.loads(line)
+
+            # 'word' = 'accueil'
+            # 'lang_code' = 'fr'
+            # 'ipa' = ['a.kœj']
+            # translations': [{'lang_code': 'de', 'word': 'Aufnahme'}
+
+            lang_code = data.get("lang_code")
+
+            # TODO: for now, we only use "en" words to define interla tokens
+            if lang_code != "en":
+                continue
+
+            word = data.get("word", "")
+
+            # Get the word ID for interla
+            if word in all_word2x:
+                x_id = all_word2x[word]
+            else:
+                x_id = len(all_word2x)
+                all_word2x[word] = x_id
+
+            coocurrences = {}
+            y_id = add_word(word, lang_code, data.get("ipa", [None])[0])
+            coocurrences["en"] = y_id
+
+            # Get the word IDs for all translations
+            for trans in data.get("translations", []):
+                trans_lang = trans.get("lang_code")
+
+                # TODO: this is a bit too much... sometimes we have the IPA so we don't care if epitran does not work, right?
+                if trans_lang not in ALL_EPITRAN_VALID_LANGUAGES:
+                    logger.warning(f"{trans_lang} language not supported by Epitran")
+                    continue
+                
+                trans_word = trans.get("word", "")
+
+                # TODO: for now we never override. BUT what if multiple values for same language? make a list?
+                if trans_lang not in coocurrences:
+                    trans_y_id = add_word(trans_word, trans_lang)
+                    coocurrences[trans_lang] = trans_y_id
+
+            int_anon_tokens_coocurrences[x_id] = coocurrences
+
+    return int_anon_tokens_coocurrences, all_y2normWord, all_y2word, LANG_WEIGHTS
+
+
 def get_all_ipa_from_normWords(all_y2normWord: Dict[str, Dict[int, str]]) -> Counter:
     """
     Extract all IPA characters from normalized words across all languages.
@@ -364,7 +510,7 @@ def get_all_ipa_from_normWords(all_y2normWord: Dict[str, Dict[int, str]]) -> Cou
 
 def main() -> None:
     try:
-        _, all_y2normWord, all_y2word, LANG_WEIGHTS = step_1()
+        _, all_y2normWord, all_y2word, LANG_WEIGHTS = get_data_from_opensub()
         all_ipa = get_all_ipa_from_normWords(all_y2normWord)
 
         # Show the most common IPA characters
@@ -377,4 +523,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    get_data_from_wiktionary()
     main()
