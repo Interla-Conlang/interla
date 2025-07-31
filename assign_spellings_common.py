@@ -492,7 +492,11 @@ def get_data_from_wiktionary() -> Tuple[
                     trans_y_id = add_word(trans_word, trans_lang)
                     coocurrences[trans_lang] = trans_y_id
 
-            int_anon_tokens_coocurrences[x_id] = coocurrences
+            if x_id in int_anon_tokens_coocurrences:
+                # TODO: for now we never override. BUT what if multiple values for same language? make a list?
+                int_anon_tokens_coocurrences[x_id].update(coocurrences)
+            else:
+                int_anon_tokens_coocurrences[x_id] = coocurrences
 
     with open("output/wikt/wikt.pkl", "wb") as f:
         pickle.dump((int_anon_tokens_coocurrences, all_y2normWord, all_y2word), f)
