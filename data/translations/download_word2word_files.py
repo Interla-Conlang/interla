@@ -226,3 +226,13 @@ if __name__ == "__main__":
     #     print(f"{lang}: {count}")
 
     main()
+
+    # with open("data/translations/downloads/fr-en.pkl", "rb") as f:
+    #     word2x, y2word, x2ys = pickle.load(f)
+
+    #     for fr_word, x in word2x.items():
+    #         ys = x2ys.get(x, [])
+    #         if ys:
+    #             words = [y2word[y] for y in ys]
+    #             print(f"{fr_word}: {', '.join(words)}")
+    #             input()
