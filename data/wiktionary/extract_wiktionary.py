@@ -8,26 +8,15 @@ import subprocess
 
 from tqdm import tqdm
 
-known_keys = {
-    "word",
-    "lang_code",  # 'lang_code' = 'fr'
+KEYS_TO_DROP = {
     "lang",  # 'lang' = 'Français'
-    "pos",  # 'pos' = 'noun'
     "pos_title",  # 'pos_title' = 'Nom commun'
     "etymology_texts",
     "etymology_text",
     "etymology_templates",
     "senses",
-    "forms",
-    "sounds",
-    "translations",
-    "synonyms",
-    "derived",
-    "related",
-    "tags",
     "anagrams",
     "categories",
-    "raw_tags",
     "meronyms",
     "hypernyms",
     "hyponyms",
@@ -35,33 +24,22 @@ known_keys = {
     "notes",
     "proverbs",
     "paronyms",
-    "antonyms",
-    "abbreviation",
     "etymology_examples",
-    "title",
-    "redirect",
-    "pos",
     "troponyms",
     "coordinate_terms",
     "etymology_number",
     "wikipedia",
-    "hyphenation",
     "original_title",
-    "abbreviations",
     "wikidata",
     "source",
-    "instances",
     "descendants",
     "info_templates",
-    "form_of",
-    "alt_of",
-    "hyphenations",
     "head_templates",
     "inflection_templates",
     "literal_meaning",
 }
 
-keys_to_keep = {
+KEYS_TO_KEEP = {
     "word",
     "lang_code",
     "pos",
@@ -85,6 +63,8 @@ keys_to_keep = {
     "instances",
     "hyphenations",
 }
+
+KNOWN_KEYS = KEYS_TO_DROP.union(KEYS_TO_KEEP)
 
 # Get number of lines in the JSONL file using a shell command
 
@@ -119,7 +99,7 @@ def process_jsonl(path: str) -> None:
 
             # Filter to keep only the desired keys
             filtered_data = {
-                key: value for key, value in data.items() if key in keys_to_keep
+                key: value for key, value in data.items() if key in KEYS_TO_KEEP
             }
 
             # Keep only key 'ipa' for all 'sounds' (we don't care about rhymes or audio files)
@@ -136,6 +116,8 @@ def process_jsonl(path: str) -> None:
                     for sound in filtered_data["sounds"]
                     if "ipa" in sound
                 ][:1]
+                if not filtered_data["ipa"]:
+                    del filtered_data["ipa"]
 
             # Keep only 'lang_code', 'word', 'sense', 'sense_index', and 'tags' for translations
             if "translations" in filtered_data:
@@ -185,7 +167,6 @@ def process_jsonl(path: str) -> None:
             # 'lang_code' = 'fr'
             # 'pos' = 'noun'
             # 'forms': [{'form': 'accueils', 'tags': [...]}]
-            # 'sounds': [{'ipa': '\\a.kœj\\'}, {'ipa': '\\a.kœj\\', 'rhymes': '\\œj\\'}, {'ipa': '\\a.kœj\\'}, {'ipa': 'ɛ̃.n‿a.kœj', 'audio': 'Fr-accueil.ogg', 'ogg_url': '***', 'ogg_url': '***', 'raw_tags': [...]}]
             # 'translations': [{'lang_code': 'de', 'lang': 'Allemand', 'word': 'Aufnahme', 'sense': 'Cérémonie', 'sense_index': 1, 'tags': ['feminine']}, 005: {'lang_code': 'ar', 'lang': 'Arabe', 'word': 'إِسْتِقْبَال', 'sense': 'Cérémonie', 'sense_index': 1, 'roman': 'istiqbèl'} {014: {'lang_code': 'cmn', 'lang': 'Mandarin', 'word': '迎接', 'sense': 'Cérémonie', 'sense_index': 1, 'roman': 'yíngjiē', 'traditional_writing': '迎接'}, ...]
             # 'synonyms': [{'word': 'home', 'tags': [...], 'sense': 'site web'}, {'word': 'main page', 'tags': [...], 'sense': 'site web'}, {'word': 'page d’accueil', 'sense': 'site web'}]
             # 'derived': [{'word': 'accueil de loisirs'}, {'word': 'agent d’accueil'}, {'word': 'comité d’accueil'}, {'word': 'émission d’accueil'}, {'word': 'faire bon accueil'}, {'word': 'faire mauvais accueil'}, {'word': 'famille d’accueil'}, {'word': 'multi-accueils'}, {'word': 'page d’accueil'}, {'word': 'plage d’accueil'}, {'word': 'station d’accueil'}]
