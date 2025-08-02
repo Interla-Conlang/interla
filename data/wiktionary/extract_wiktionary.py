@@ -83,7 +83,7 @@ KNOWN_KEYS = KEYS_TO_DROP.union(KEYS_TO_KEEP)
 # Get number of lines in the JSONL file using a shell command
 
 jsonl_paths = [
-    "data/wiktionary/fr-extract.jsonl",
+    "data/wiktionary/fr-extract.jsonl.gz",
     "data/wiktionary/kaikki.org-dictionary-all-words.jsonl.gz",
 ]
 
@@ -94,6 +94,8 @@ def process_line(line: str) -> str:
 
     # Filter to keep only the desired keys
     filtered_data = {key: value for key, value in data.items() if key in KEYS_TO_KEEP}
+
+    # TODO: process and use links like redirect
 
     # Keep only key 'ipa' for all 'sounds' (we don't care about rhymes or audio files)
     if "sounds" in filtered_data:
@@ -113,14 +115,23 @@ def process_line(line: str) -> str:
                 d["lang_code"] = t["lang_code"]
             elif "code" in t:
                 d["lang_code"] = t["code"]
+            else:
+                continue  # Word without lang code is useless for the rest of the code
             if "word" in t:
                 d["word"] = t["word"]
+            else:
+                continue  # data without "word" is useless (often American Sign Language)
             if "sense_index" in t:
                 d["sense_index"] = t["sense_index"]
             if "tags" in t:
                 d["tags"] = t["tags"]  # neuter, feminine, masculine, etc.
             ts.append(d)
+
+        if ts == []:
+            pass
         filtered_data["translations"] = ts
+    else:
+        pass
 
     # Extract 'word' from lists
     for key in ["synonyms", "derived", "related"]:
@@ -145,7 +156,9 @@ def get_line_count_fast(file_path: str) -> int:
         with open(file_path, "r", encoding="utf-8") as f:
             return sum(1 for _ in f)
 
+
 # TODO: still quite slow, multiprocessing does not really help (4:00)
+
 
 def process_jsonl(path: str) -> None:
     """Process JSONL file with multiprocessing and optimizations."""
@@ -159,7 +172,7 @@ def process_jsonl(path: str) -> None:
 
     # Determine chunk size and number of workers
     chunk_size = 125_000  # Fixed chunk size
-    num_workers = min(cpu_count(), 10)  # Limit to 10 workers max
+    num_workers = min(cpu_count(), 1)  # Limit to 10 workers max
 
     print(f"Using {num_workers} workers with chunk size {chunk_size}")
 
