@@ -130,8 +130,6 @@ def process_line(line: str) -> str:
         if ts == []:
             pass
         filtered_data["translations"] = ts
-    else:
-        pass
 
     # Extract 'word' from lists
     for key in ["synonyms", "derived", "related"]:
@@ -157,9 +155,6 @@ def get_line_count_fast(file_path: str) -> int:
             return sum(1 for _ in f)
 
 
-# TODO: still quite slow, multiprocessing does not really help (4:00)
-
-
 def process_jsonl(path: str) -> None:
     """Process JSONL file with multiprocessing and optimizations."""
     light_jsonl_path = path.replace(".jsonl.gz", ".light.jsonl")
@@ -170,66 +165,19 @@ def process_jsonl(path: str) -> None:
 
     print(f"Processing {path}...")
 
-    # Determine chunk size and number of workers
-    chunk_size = 125_000  # Fixed chunk size
-    num_workers = min(cpu_count(), 1)  # Limit to 10 workers max
-
-    print(f"Using {num_workers} workers with chunk size {chunk_size}")
-
     # Open input file (gzipped or regular)
     if path.endswith(".gz"):
         input_file = gzip.open(path, "rt", encoding="utf-8")
     else:
         input_file = open(path, "r", encoding="utf-8")
 
-    processed_lines = 0  # Initialize here to avoid unbound variable
-    try:
-        with (
-            input_file,
-            open(light_jsonl_path, "w", encoding="utf-8", buffering=8192 * 8) as out_f,
-        ):
-            # Process in chunks using multiprocessing
-            with ProcessPoolExecutor(max_workers=num_workers) as executor:
-                futures = []
-                chunk = []
-
-                # Use tqdm for progress tracking
-                with tqdm(desc="Processing lines") as pbar:
-                    for line in input_file:
-                        chunk.append(line)
-
-                        if len(chunk) >= chunk_size:
-                            # Submit chunk for processing
-                            future = executor.submit(process_chunk, chunk.copy())
-                            futures.append(future)
-                            chunk.clear()
-
-                            # Write completed chunks to maintain order
-                            while futures and futures[0].done():
-                                completed_future = futures.pop(0)
-                                results = completed_future.result()
-                                for result in results:
-                                    out_f.write(result + "\n")
-                                processed_lines += len(results)
-                                pbar.update(len(results))
-
-                    # Process remaining chunk
-                    if chunk:
-                        future = executor.submit(process_chunk, chunk)
-                        futures.append(future)
-
-                    # Process remaining futures
-                    for future in as_completed(futures):
-                        results = future.result()
-                        for result in results:
-                            out_f.write(result + "\n")
-                        processed_lines += len(results)
-                        pbar.update(len(results))
-
-    finally:
-        input_file.close()
-
-        print(f"Processed {processed_lines:,} lines and saved to {light_jsonl_path}")
+    # TODO: save as jsonl.gz?
+    with (
+        input_file,
+        open(light_jsonl_path, "w", encoding="utf-8", buffering=8192 * 8) as out_f,
+    ):
+        for line in tqdm(input_file):
+            out_f.write(process_line(line))
 
 
 if __name__ == "__main__":
