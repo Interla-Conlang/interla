@@ -448,107 +448,104 @@ def get_data_from_wiktionary() -> Tuple[
     logger.debug("First pass: collecting words by language")
     words_by_lang: Dict[str, List[Tuple[int, str, Optional[str]]]] = defaultdict(list)
 
-    jsonl_path = "data/wiktionary/kaikki.org-dictionary-all-words.light.jsonl"
-    with open(jsonl_path, "r", encoding="utf-8") as f:
-        lines_processed = 0
-        for line in tqdm(f, desc="Parsing JSONL"):
-            lines_processed += 1
+    jsonl_paths = ["data/wiktionary/fr-extract.light.jsonl", "data/wiktionary/kaikki.org-dictionary-all-words.light.jsonl"]
+    for jsonl_path in jsonl_paths:
+        with open(jsonl_path, "r", encoding="utf-8") as f:
+            for line in tqdm(f, desc="Parsing JSONL"):
+                # if 'code": "en"' not in line:
+                #     continue
 
-            # TODO: (early filtering) for now, we only use "en" words to define interla tokens
-            # if 'code": "en"' not in line:
-            #     continue
-
-            try:
-                data = orjson.loads(line)
-            except Exception:
-                continue
-
-            word = data.get("word", "")
-            if not word:
-                continue
-
-            lang_code = data.get("lang_code")
-            if not lang_code:
-                continue
-
-            # 'word' = 'accueil'
-            # 'lang_code' = 'fr'
-            # 'ipa' = ['a.kœj']
-            # translations': [{'lang_code': 'de', 'word': 'Aufnahme'}
-
-            # FIXME: for the moment, we need an english token to define an interla token
-            # IN THE FUTURE, we should not rely on the existence of an english token specifically
-
-            if lang_code != "en":
-                # Check that code exists in translations and "invert" the record
-                if "translations" not in data:
-                    continue
-                idx = [
-                    i
-                    for i, t in enumerate(data["translations"])
-                    if t["lang_code"] == "en"
-                ]
-                idx = idx[0] if idx else None
-                if idx is None:
-                    continue
-                # Else:
-                # Add current lang as a translation
-                data["translations"].append(
-                    {"word": word, "lang_code": lang_code, "ipa": data.get("ipa", None)}
-                )
-                # Now, remove "en" from translations and use it as the main word
-                word = data["translations"][idx].get("word", "")
-                lang_code = "en"
-                del data["translations"][idx]
-
-            # Get the word ID for interla
-            if word not in all_word2x:
-                all_word2x[word] = len(all_word2x)
-            x_id = all_word2x[word]
-
-            # Get IPA if available
-            ipa_list = data.get("ipa", [])
-            ipa = ipa_list[0] if ipa_list and ipa_list[0] else None
-
-            # Add English word
-            if word not in all_word2y:
-                all_word2y[word] = len(all_word2y)
-            y_id = all_word2y[word]
-
-            words_by_lang["en"].append((y_id, word, ipa))
-            all_y2word["en"][y_id] = word
-
-            # Collect translation words
-            cooccurrences = {"en": y_id}
-
-            for trans in data.get("translations", []):
-                trans_lang = trans.get("lang_code")
-
-                # TODO: this is a bit too harsh... sometimes we have the IPA so we don't care if epitran does not work, right?
-                if trans_lang not in ALL_EPITRAN_VALID_LANGUAGES:
+                try:
+                    data = orjson.loads(line)
+                except Exception:
                     continue
 
-                trans_word = trans.get("word", "")
-                if not trans_word:
+                word = data.get("word", "")
+                if not word:
                     continue
 
-                ipa = data.get("ipa", None)  # 99% of translations do not have an IPA
+                lang_code = data.get("lang_code")
+                if not lang_code:
+                    continue
 
-                if trans_lang not in cooccurrences:
-                    if trans_word not in all_word2y:
-                        all_word2y[trans_word] = len(all_word2y)
-                    trans_y_id = all_word2y[trans_word]
+                # 'word' = 'accueil'
+                # 'lang_code' = 'fr'
+                # 'ipa' = ['a.kœj']
+                # translations': [{'lang_code': 'de', 'word': 'Aufnahme'}
 
-                    words_by_lang[trans_lang].append((trans_y_id, trans_word, ipa))
-                    all_y2word[trans_lang][trans_y_id] = trans_word
-                    cooccurrences[trans_lang] = trans_y_id
+                # FIXME: for the moment, we need an english token to define an interla token
+                # IN THE FUTURE, we should not rely on the existence of an english token specifically
 
-            # Store cooccurrences
-            if x_id in int_anon_tokens_coocurrences:
-                # TODO: for now we never override. BUT what if multiple values for same language? make a list?
-                int_anon_tokens_coocurrences[x_id].update(cooccurrences)
-            else:
-                int_anon_tokens_coocurrences[x_id] = cooccurrences
+                if lang_code != "en":
+                    # Check that code exists in translations and "invert" the record
+                    if "translations" not in data:
+                        continue
+                    idx = [
+                        i
+                        for i, t in enumerate(data["translations"])
+                        if t["lang_code"] == "en"
+                    ]
+                    idx = idx[0] if idx else None  # TODO: what if there are multiple ones (should be multiple records)
+                    if idx is None:
+                        continue
+                    # Else:
+                    # Add current lang as a translation
+                    data["translations"].append(
+                        {"word": word, "lang_code": lang_code, "ipa": data.get("ipa", None)}
+                    )
+                    # Now, remove "en" from translations and use it as the main word
+                    word = data["translations"][idx].get("word", "")
+                    lang_code = "en"
+                    del data["translations"][idx]
+
+                # Get the word ID for interla
+                if word not in all_word2x:
+                    all_word2x[word] = len(all_word2x)
+                x_id = all_word2x[word]
+
+                # Get IPA if available
+                ipa_list = data.get("ipa", [])
+                ipa = ipa_list[0] if ipa_list and ipa_list[0] else None
+
+                # Add English word
+                if word not in all_word2y:
+                    all_word2y[word] = len(all_word2y)
+                y_id = all_word2y[word]
+
+                words_by_lang["en"].append((y_id, word, ipa))
+                all_y2word["en"][y_id] = word
+
+                # Collect translation words
+                cooccurrences = {"en": y_id}
+
+                for trans in data.get("translations", []):
+                    trans_lang = trans.get("lang_code")
+
+                    # TODO: this is a bit too harsh... sometimes we have the IPA so we don't care if epitran does not work, right?
+                    if trans_lang not in ALL_EPITRAN_VALID_LANGUAGES:
+                        continue
+
+                    trans_word = trans.get("word", "")
+                    if not trans_word:
+                        continue
+
+                    ipa = trans.get("ipa", None)  # 99% of translations do not have an IPA
+
+                    if trans_lang not in cooccurrences:
+                        if trans_word not in all_word2y:
+                            all_word2y[trans_word] = len(all_word2y)
+                        trans_y_id = all_word2y[trans_word]
+
+                        words_by_lang[trans_lang].append((trans_y_id, trans_word, ipa))
+                        all_y2word[trans_lang][trans_y_id] = trans_word
+                        cooccurrences[trans_lang] = trans_y_id
+
+                # Store cooccurrences
+                if x_id in int_anon_tokens_coocurrences:
+                    # TODO: for now we never override. BUT what if multiple values for same language? make a list?
+                    int_anon_tokens_coocurrences[x_id].update(cooccurrences)
+                else:
+                    int_anon_tokens_coocurrences[x_id] = cooccurrences
 
     # Second pass: process words in batches using multiprocessing
     logger.debug("Second pass: processing IPA in batches")
