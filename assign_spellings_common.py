@@ -392,8 +392,7 @@ def process_words_batch(
         return lang_code, [""] * len(words_data)
 
 
-def get_data_from_wiktionary(
-) -> Tuple[
+def get_data_from_wiktionary() -> Tuple[
     Dict[int, Dict[str, int]],
     Dict[str, Dict[int, str]],
     Dict[str, Dict[int, str]],
@@ -456,12 +455,20 @@ def get_data_from_wiktionary(
             lines_processed += 1
 
             # TODO: (early filtering) for now, we only use "en" words to define interla tokens
-            if '"lang_code": "en"' not in line:
-                continue
+            # if 'code": "en"' not in line:
+            #     continue
 
             try:
                 data = orjson.loads(line)
             except Exception:
+                continue
+
+            word = data.get("word", "")
+            if not word:
+                continue
+
+            lang_code = data.get("lang_code")
+            if not lang_code:
                 continue
 
             # 'word' = 'accueil'
@@ -469,15 +476,30 @@ def get_data_from_wiktionary(
             # 'ipa' = ['a.kœj']
             # translations': [{'lang_code': 'de', 'word': 'Aufnahme'}
 
-            lang_code = data.get("lang_code")
+            # FIXME: for the moment, we need an english token to define an interla token
+            # IN THE FUTURE, we should not rely on the existence of an english token specifically
 
-            # TODO: for now, we only use "en" words to define interla tokens
             if lang_code != "en":
-                continue
-
-            word = data.get("word", "")
-            if not word:
-                continue
+                # Check that code exists in translations and "invert" the record
+                if "translations" not in data:
+                    continue
+                idx = [
+                    i
+                    for i, t in enumerate(data["translations"])
+                    if t["lang_code"] == "en"
+                ]
+                idx = idx[0] if idx else None
+                if idx is None:
+                    continue
+                # Else:
+                # Add current lang as a translation
+                data["translations"].append(
+                    {"word": word, "lang_code": lang_code, "ipa": data.get("ipa", None)}
+                )
+                # Now, remove "en" from translations and use it as the main word
+                word = data["translations"][idx].get("word", "")
+                lang_code = "en"
+                del data["translations"][idx]
 
             # Get the word ID for interla
             if word not in all_word2x:
@@ -509,13 +531,15 @@ def get_data_from_wiktionary(
                 trans_word = trans.get("word", "")
                 if not trans_word:
                     continue
-                
+
+                ipa = data.get("ipa", None)  # 99% of translations do not have an IPA
+
                 if trans_lang not in cooccurrences:
                     if trans_word not in all_word2y:
                         all_word2y[trans_word] = len(all_word2y)
                     trans_y_id = all_word2y[trans_word]
 
-                    words_by_lang[trans_lang].append((trans_y_id, trans_word, None))
+                    words_by_lang[trans_lang].append((trans_y_id, trans_word, ipa))
                     all_y2word[trans_lang][trans_y_id] = trans_word
                     cooccurrences[trans_lang] = trans_y_id
 
@@ -530,12 +554,14 @@ def get_data_from_wiktionary(
     logger.debug("Second pass: processing IPA in batches")
 
     # Prepare data for batch processing
-    # TODO: this is quite unefficient because most batch are very small, and some batch (like `en` and `zh` will be very big)
     batch_data = []
     for lang_code, word_tuples in words_by_lang.items():
         # Extract just (word, ipa) pairs for processing
-        words_data = [(word, ipa) for _, word, ipa in word_tuples]
-        batch_data.append((lang_code, words_data))
+        all_words_data = [(word, ipa) for _, word, ipa in word_tuples]
+        max_batch_size = 150_000
+        for i in range(0, len(all_words_data), max_batch_size):
+            words_data = all_words_data[i : i + max_batch_size]
+            batch_data.append((lang_code, words_data))
 
     # Process in parallel
     if batch_data:
