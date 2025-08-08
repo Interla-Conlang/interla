@@ -1,6 +1,8 @@
 import hashlib
 from typing import Callable, Dict, List, Optional, Tuple
 
+from gen_vocabulary import IPA_CONSONANTS
+
 
 def _hash_path(path: List[str]) -> str:
     """Create a compact hash of the path to reduce memory usage."""
@@ -120,8 +122,13 @@ def recursive_search(
 
     # Base case: reached the end
     if position >= len(tokens):
-        # Check if all characters in the path are "-"
-        if all(c == "-" for c in current_path):
+        # Invalid if all characters in the path are "-"
+        # or all but one but it's a consonant
+        count_dashes = sum(c == "-" for c in current_path)
+        if count_dashes == len(current_path) or (
+            count_dashes == len(current_path) - 1
+            and [c for c in current_path if c != "-"][0] in IPA_CONSONANTS
+        ):
             result = ([], float("inf"))
             if use_memo:
                 memo[memo_key] = result
