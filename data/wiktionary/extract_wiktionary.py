@@ -7,6 +7,7 @@ import os
 
 import orjson
 from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
 
 
 def json_loads(s):
@@ -82,7 +83,6 @@ KNOWN_KEYS = KEYS_TO_DROP.union(KEYS_TO_KEEP)
 
 jsonl_paths = [
     "data/wiktionary/fr-extract.jsonl.gz",
-    "data/wiktionary/kaikki.org-dictionary-all-words.jsonl.gz",
     "data/wiktionary/zh-extract.jsonl.gz",
     "data/wiktionary/raw-wiktextract-data.jsonl.gz",
 ]
@@ -183,43 +183,42 @@ def process_jsonl(path: str) -> None:
 
 
 if __name__ == "__main__":
-    for jsonl_path in jsonl_paths:
-        process_jsonl(jsonl_path)
+    process_map(process_jsonl, jsonl_paths)
 
-        # TO KEEP
-        # 'word' = 'accueil'
-        # 'lang_code' = 'fr'
-        # 'pos' = 'noun'
-        # 'forms': [{'form': 'accueils', 'tags': [...]}]
-        # 'translations': [{'lang_code': 'de', 'lang': 'Allemand', 'word': 'Aufnahme', 'sense': 'Cérémonie', 'sense_index': 1, 'tags': ['feminine']}, 005: {'lang_code': 'ar', 'lang': 'Arabe', 'word': 'إِسْتِقْبَال', 'sense': 'Cérémonie', 'sense_index': 1, 'roman': 'istiqbèl'} {014: {'lang_code': 'cmn', 'lang': 'Mandarin', 'word': '迎接', 'sense': 'Cérémonie', 'sense_index': 1, 'roman': 'yíngjiē', 'traditional_writing': '迎接'}, ...]
-        # 'synonyms': [{'word': 'home', 'tags': [...], 'sense': 'site web'}, {'word': 'main page', 'tags': [...], 'sense': 'site web'}, {'word': 'page d’accueil', 'sense': 'site web'}]
-        # 'derived': [{'word': 'accueil de loisirs'}, {'word': 'agent d’accueil'}, {'word': 'comité d’accueil'}, {'word': 'émission d’accueil'}, {'word': 'faire bon accueil'}, {'word': 'faire mauvais accueil'}, {'word': 'famille d’accueil'}, {'word': 'multi-accueils'}, {'word': 'page d’accueil'}, {'word': 'plage d’accueil'}, {'word': 'station d’accueil'}]
-        # 'related': [{'word': 'accueillir'}, {'word': 'accueillage'}, {'word': 'accueillant'}]
-        # 'tags': ['masculine']
-        # 'raw_tags': ['3ᵉ groupe']
-        # 'antonyms': [{'word': 'dur', 'sense_index': 1}, {'word': 'solide', 'sense_index': 1}, {'word': 'immeuble', 'sense_index': 2}]
-        # 'abbreviation': [{'word': 'mar.'}]
-        # instances, value: [{'word': 'January', 'source': 'Thesaurus:month'}, ...]
-        # Unknown key: hyphenations, value: [{'parts': ['dic', 'tion', 'a', 'ry']}, {'parts': ['dic', 'tion', 'ary']}]
-        # Unknown key: alt_of, value: [{'word': 'bə́ wə́'}]
-        # Unknown key: form_of, value: [{'word': 'tu'}]
+    # TO KEEP
+    # 'word' = 'accueil'
+    # 'lang_code' = 'fr'
+    # 'pos' = 'noun'
+    # 'forms': [{'form': 'accueils', 'tags': [...]}]
+    # 'translations': [{'lang_code': 'de', 'lang': 'Allemand', 'word': 'Aufnahme', 'sense': 'Cérémonie', 'sense_index': 1, 'tags': ['feminine']}, 005: {'lang_code': 'ar', 'lang': 'Arabe', 'word': 'إِسْتِقْبَال', 'sense': 'Cérémonie', 'sense_index': 1, 'roman': 'istiqbèl'} {014: {'lang_code': 'cmn', 'lang': 'Mandarin', 'word': '迎接', 'sense': 'Cérémonie', 'sense_index': 1, 'roman': 'yíngjiē', 'traditional_writing': '迎接'}, ...]
+    # 'synonyms': [{'word': 'home', 'tags': [...], 'sense': 'site web'}, {'word': 'main page', 'tags': [...], 'sense': 'site web'}, {'word': 'page d’accueil', 'sense': 'site web'}]
+    # 'derived': [{'word': 'accueil de loisirs'}, {'word': 'agent d’accueil'}, {'word': 'comité d’accueil'}, {'word': 'émission d’accueil'}, {'word': 'faire bon accueil'}, {'word': 'faire mauvais accueil'}, {'word': 'famille d’accueil'}, {'word': 'multi-accueils'}, {'word': 'page d’accueil'}, {'word': 'plage d’accueil'}, {'word': 'station d’accueil'}]
+    # 'related': [{'word': 'accueillir'}, {'word': 'accueillage'}, {'word': 'accueillant'}]
+    # 'tags': ['masculine']
+    # 'raw_tags': ['3ᵉ groupe']
+    # 'antonyms': [{'word': 'dur', 'sense_index': 1}, {'word': 'solide', 'sense_index': 1}, {'word': 'immeuble', 'sense_index': 2}]
+    # 'abbreviation': [{'word': 'mar.'}]
+    # instances, value: [{'word': 'January', 'source': 'Thesaurus:month'}, ...]
+    # Unknown key: hyphenations, value: [{'parts': ['dic', 'tion', 'a', 'ry']}, {'parts': ['dic', 'tion', 'ary']}]
+    # Unknown key: alt_of, value: [{'word': 'bə́ wə́'}]
+    # Unknown key: form_of, value: [{'word': 'tu'}]
 
-        # REDIRECTS
-        # 'title' = "quelqu'un"
-        # 'redirect' = "quelqu’un"
-        # 'pos' = "hard-redirect"
+    # REDIRECTS
+    # 'title' = "quelqu'un"
+    # 'redirect' = "quelqu’un"
+    # 'pos' = "hard-redirect"
 
-        # TODO: dois-je inclure dans l'optimisation?
-        # "meronyms",
-        # "hypernyms",
-        # "hyponyms",
-        # holonyms
-        # 'troponyms'
+    # TODO: dois-je inclure dans l'optimisation?
+    # "meronyms",
+    # "hypernyms",
+    # "hyponyms",
+    # holonyms
+    # 'troponyms'
 
-        # for key in data:
-        #     if key not in known_keys:
-        #         print(f"Unknown key: {key}, value: {data[key]}")
-        #         known_keys.add(key)
+    # for key in data:
+    #     if key not in known_keys:
+    #         print(f"Unknown key: {key}, value: {data[key]}")
+    #         known_keys.add(key)
 
     # Delete the original JSONL file if it was gzipped
     # if path.endswith(".gz"):
