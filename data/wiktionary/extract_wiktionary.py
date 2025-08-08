@@ -159,7 +159,7 @@ def get_line_count_fast(file_path: str) -> int:
 
 def process_jsonl(path: str) -> None:
     """Process JSONL file with multiprocessing and optimizations."""
-    light_jsonl_path = path.replace(".jsonl.gz", ".light.jsonl")
+    light_jsonl_path = path.replace(".jsonl.gz", ".light.jsonl.gz")
 
     if os.path.exists(light_jsonl_path):
         print(f"Skipping {path}, already processed.")
@@ -176,7 +176,7 @@ def process_jsonl(path: str) -> None:
     # TODO: save as jsonl.gz?
     with (
         input_file,
-        open(light_jsonl_path, "w", encoding="utf-8", buffering=8192 * 8) as out_f,
+        gzip.open(light_jsonl_path, "wt", encoding="utf-8", compresslevel=6) as out_f,
     ):
         for line in tqdm(input_file):
             out_f.write(process_line(line))

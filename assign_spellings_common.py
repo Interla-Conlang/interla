@@ -12,6 +12,7 @@ Abbreviations:
 """
 
 import glob
+import gzip
 import os
 import pickle
 import unicodedata
@@ -449,11 +450,11 @@ def get_data_from_wiktionary() -> Tuple[
     words_by_lang: Dict[str, List[Tuple[int, str, Optional[str]]]] = defaultdict(list)
 
     jsonl_paths = [
-        "data/wiktionary/fr-extract.light.jsonl",
-        "data/wiktionary/kaikki.org-dictionary-all-words.light.jsonl",
+        "data/wiktionary/fr-extract.light.jsonl.gz",
+        "data/wiktionary/kaikki.org-dictionary-all-words.light.jsonl.gz",
     ]
     for jsonl_path in jsonl_paths:
-        with open(jsonl_path, "r", encoding="utf-8") as f:
+        with gzip.open(jsonl_path, "rt", encoding="utf-8") as f:
             for line in tqdm(f, desc="Parsing JSONL"):
                 # if 'code": "en"' not in line:
                 #     continue
