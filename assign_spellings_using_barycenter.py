@@ -9,7 +9,7 @@ from multiple languages.
 
 import os
 import pickle
-from typing import Dict, List, Tuple
+from typing import Dict, Set, Tuple
 
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
@@ -24,7 +24,7 @@ _all_y2normWord: Dict[str, Dict[int, str]] = {}
 _LANG_WEIGHTS: Dict[str, float] = {}
 
 
-def compute_token(args: Tuple[int, Dict[str, List[int]]]) -> Tuple[str, int]:
+def compute_token(args: Tuple[int, Dict[str, Set[int]]]) -> Tuple[str, int]:
     """
     Compute the Interla orthographic token for a given anonymous token.
 
@@ -49,6 +49,7 @@ def compute_token(args: Tuple[int, Dict[str, List[int]]]) -> Tuple[str, int]:
     for lang, w_ids in assoc_words.items():
         lang_weight = _LANG_WEIGHTS[lang]
         # Distribute the language weight if multiple words are present for a given language
+        w_ids = set(w_ids)  # Ensure unique word IDs
         lang_weight_per_word = lang_weight / len(w_ids) if w_ids else 0.0
         for w_id in w_ids:
             word = _all_y2normWord[lang].get(w_id, "")
@@ -73,11 +74,14 @@ def compute_token(args: Tuple[int, Dict[str, List[int]]]) -> Tuple[str, int]:
     if int_ipa_token:
         int_orth_token = "".join(IPA_TO_INTERLA[char] for char in int_ipa_token)
 
+    if not int_orth_token:
+        pass
+
     return int_orth_token, int_anon_token
 
 
 def load_or_compute_vocabulary(
-    int_anon_tokens_coocurrences: Dict[int, Dict[str, List[int]]],
+    int_anon_tokens_coocurrences: Dict[int, Dict[str, Set[int]]],
     all_y2normWord: Dict[str, Dict[int, str]],
     LANG_WEIGHTS: Dict[str, float],
 ) -> Dict[str, int]:

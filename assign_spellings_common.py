@@ -17,7 +17,7 @@ import os
 import pickle
 import unicodedata
 from collections import Counter, defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import epitran
 import orjson
@@ -27,7 +27,7 @@ from tqdm.contrib.concurrent import process_map, thread_map
 
 from constants import ALL_EPITRAN_VALID_LANGUAGES, LANG_TO_EPITRAN
 from logging_config import logger
-from utils import ALL_VALID_LANGUAGES, get_lang_weights
+from utils import get_lang_weights
 
 # logger.debug("Downloading cedict data")
 # from epitran.download import cedict
@@ -394,7 +394,7 @@ def process_words_batch(
 
 
 def get_data_from_wiktionary() -> Tuple[
-    Dict[int, Dict[str, List[int]]],
+    Dict[int, Dict[str, Set[int]]],
     Dict[str, Dict[int, str]],
     Dict[str, Dict[int, str]],
     Dict[str, float],
@@ -439,7 +439,7 @@ def get_data_from_wiktionary() -> Tuple[
 
     logger.debug("Initializing data structures")
     # Use defaultdict for better performance
-    int_anon_tokens_coocurrences: Dict[int, Dict[str, List[int]]] = {}
+    int_anon_tokens_coocurrences: Dict[int, Dict[str, Set[int]]] = {}
     all_y2normWord: Dict[str, Dict[int, str]] = defaultdict(dict)
     all_y2word: Dict[str, Dict[int, str]] = defaultdict(dict)
     all_word2x: Dict[str, int] = {}
@@ -565,13 +565,13 @@ def get_data_from_wiktionary() -> Tuple[
                     # Append to the existing lists for each language
                     for lang, y_id in cooccurrences.items():
                         if lang in int_anon_tokens_coocurrences[x_id]:
-                            int_anon_tokens_coocurrences[x_id][lang].append(y_id)
+                            int_anon_tokens_coocurrences[x_id][lang].add(y_id)
                         else:
-                            int_anon_tokens_coocurrences[x_id][lang] = [y_id]
+                            int_anon_tokens_coocurrences[x_id][lang] = {y_id}
                 else:
-                    # Wrap every int in a list
+                    # Wrap every int in a set
                     int_anon_tokens_coocurrences[x_id] = {
-                        lang: [y_id] for lang, y_id in cooccurrences.items()
+                        lang: {y_id} for lang, y_id in cooccurrences.items()
                     }
 
     # Second pass: process words in batches using multiprocessing
