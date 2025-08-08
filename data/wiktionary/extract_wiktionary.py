@@ -173,13 +173,12 @@ def process_jsonl(path: str) -> None:
     else:
         input_file = open(path, "r", encoding="utf-8")
 
-    # TODO: save as jsonl.gz?
     with (
         input_file,
         gzip.open(light_jsonl_path, "wt", encoding="utf-8", compresslevel=6) as out_f,
     ):
         for line in tqdm(input_file):
-            out_f.write(process_line(line))
+            out_f.write(process_line(line) + "\n")
 
 
 if __name__ == "__main__":
