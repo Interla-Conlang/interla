@@ -4,8 +4,6 @@ Download and preprocess (to reduce filesize) JSONL file extracted from Wiktionar
 
 import gzip
 import os
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from multiprocessing import cpu_count
 
 import orjson
 from tqdm import tqdm
@@ -85,6 +83,8 @@ KNOWN_KEYS = KEYS_TO_DROP.union(KEYS_TO_KEEP)
 jsonl_paths = [
     "data/wiktionary/fr-extract.jsonl.gz",
     "data/wiktionary/kaikki.org-dictionary-all-words.jsonl.gz",
+    "data/wiktionary/zh-extract.jsonl.gz",
+    "data/wiktionary/raw-wiktextract-data.jsonl.gz",
 ]
 
 
@@ -130,6 +130,8 @@ def process_line(line: str) -> str:
         if ts == []:
             pass
         filtered_data["translations"] = ts
+    else:
+        pass
 
     # Extract 'word' from lists
     for key in ["synonyms", "derived", "related"]:

@@ -448,7 +448,10 @@ def get_data_from_wiktionary() -> Tuple[
     logger.debug("First pass: collecting words by language")
     words_by_lang: Dict[str, List[Tuple[int, str, Optional[str]]]] = defaultdict(list)
 
-    jsonl_paths = ["data/wiktionary/fr-extract.light.jsonl", "data/wiktionary/kaikki.org-dictionary-all-words.light.jsonl"]
+    jsonl_paths = [
+        "data/wiktionary/fr-extract.light.jsonl",
+        "data/wiktionary/kaikki.org-dictionary-all-words.light.jsonl",
+    ]
     for jsonl_path in jsonl_paths:
         with open(jsonl_path, "r", encoding="utf-8") as f:
             for line in tqdm(f, desc="Parsing JSONL"):
@@ -485,13 +488,19 @@ def get_data_from_wiktionary() -> Tuple[
                         for i, t in enumerate(data["translations"])
                         if t["lang_code"] == "en"
                     ]
-                    idx = idx[0] if idx else None  # TODO: what if there are multiple ones (should be multiple records)
+                    idx = (
+                        idx[0] if idx else None
+                    )  # TODO: what if there are multiple ones (should be multiple records)
                     if idx is None:
                         continue
                     # Else:
                     # Add current lang as a translation
                     data["translations"].append(
-                        {"word": word, "lang_code": lang_code, "ipa": data.get("ipa", None)}
+                        {
+                            "word": word,
+                            "lang_code": lang_code,
+                            "ipa": data.get("ipa", None),
+                        }
                     )
                     # Now, remove "en" from translations and use it as the main word
                     word = data["translations"][idx].get("word", "")
@@ -529,7 +538,9 @@ def get_data_from_wiktionary() -> Tuple[
                     if not trans_word:
                         continue
 
-                    ipa = trans.get("ipa", None)  # 99% of translations do not have an IPA
+                    ipa = trans.get(
+                        "ipa", None
+                    )  # 99% of translations do not have an IPA
 
                     if trans_lang not in cooccurrences:
                         if trans_word not in all_word2y:
@@ -591,6 +602,16 @@ def get_data_from_wiktionary() -> Tuple[
         dict(all_y2word),
         LANG_WEIGHTS,
     )
+
+
+# def get_data_from_all_sources() -> Tuple[
+#     Dict[int, Dict[str, int]],
+#     Dict[str, Dict[int, str]],
+#     Dict[str, Dict[int, str]],
+#     Dict[str, float],
+# ]:
+#     """ """
+#     pass
 
 
 def get_all_ipa_from_normWords(all_y2normWord: Dict[str, Dict[int, str]]) -> Counter:
