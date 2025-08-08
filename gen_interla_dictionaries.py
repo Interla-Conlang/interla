@@ -181,20 +181,21 @@ def gen_single_dictionary(language_code: str) -> None:
     for int_orth_token, int_anon_token in vocab.items():
         assoc_words = int_anon_tokens_coocurrences.get(int_anon_token, {})
         if language_code in assoc_words:
-            y_id = assoc_words[language_code]
-            word = y2word[y_id]
+            y_ids = assoc_words[language_code]
+            for y_id in y_ids:
+                word = y2word[y_id]
 
-            if freq_dict is None or word in freq_dict:
-                # Store both directions, handling multiple translations
-                if word not in lang_to_interla:
-                    lang_to_interla[word] = []
-                if int_orth_token not in lang_to_interla[word]:
-                    lang_to_interla[word].append(int_orth_token)
+                if freq_dict is None or word in freq_dict:
+                    # Store both directions, handling multiple translations
+                    if word not in lang_to_interla:
+                        lang_to_interla[word] = []
+                    if int_orth_token not in lang_to_interla[word]:
+                        lang_to_interla[word].append(int_orth_token)
 
-                if int_orth_token not in interla_to_lang:
-                    interla_to_lang[int_orth_token] = []
-                if word not in interla_to_lang[int_orth_token]:
-                    interla_to_lang[int_orth_token].append(word)
+                    if int_orth_token not in interla_to_lang:
+                        interla_to_lang[int_orth_token] = []
+                    if word not in interla_to_lang[int_orth_token]:
+                        interla_to_lang[int_orth_token].append(word)
 
     if lang_to_interla:
         logger.info(
@@ -260,22 +261,23 @@ def gen_dictionaries() -> None:
         for int_orth_token, int_anon_token in vocab.items():
             assoc_words = int_anon_tokens_cooccurrences.get(int_anon_token, {})
             if dict_lang in assoc_words:
-                y_id = assoc_words[dict_lang]
-                word = y2word[y_id]
+                y_ids = assoc_words[dict_lang]
+                for y_id in y_ids:
+                    word = y2word[y_id]
 
-                if (
-                    freq_dict is None or word.lower() in freq_dict
-                ):  # restrict to frequent words
-                    # Store both directions, handling multiple translations
-                    if word not in lang_to_interla:
-                        lang_to_interla[word] = []
-                    if int_orth_token not in lang_to_interla[word]:
-                        lang_to_interla[word].append(int_orth_token)
+                    if (
+                        freq_dict is None or word.lower() in freq_dict
+                    ):  # restrict to frequent words
+                        # Store both directions, handling multiple translations
+                        if word not in lang_to_interla:
+                            lang_to_interla[word] = []
+                        if int_orth_token not in lang_to_interla[word]:
+                            lang_to_interla[word].append(int_orth_token)
 
-                    if int_orth_token not in interla_to_lang:
-                        interla_to_lang[int_orth_token] = []
-                    if word not in interla_to_lang[int_orth_token]:
-                        interla_to_lang[int_orth_token].append(word)
+                        if int_orth_token not in interla_to_lang:
+                            interla_to_lang[int_orth_token] = []
+                        if word not in interla_to_lang[int_orth_token]:
+                            interla_to_lang[int_orth_token].append(word)
 
         # Add to arguments list for parallel processing
         dictionary_args.append((lang_to_interla, interla_to_lang, dict_lang))

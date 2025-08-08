@@ -73,8 +73,12 @@ def viz_vocab() -> None:
                 key=lambda x: x[0],  # sort alphabetically by language code
             )
 
-            words: List[str] = [all_y2word[lang][y_id] for lang, y_id in items]
-            normWords: List[str] = [all_y2normWord[lang][y_id] for lang, y_id in items]
+            words: List[str] = [
+                all_y2word[lang][y_id] for lang, y_ids in items for y_id in y_ids
+            ]
+            normWords: List[str] = [
+                all_y2normWord[lang][y_id] for lang, y_ids in items for y_id in y_ids
+            ]
             ipas: List[str] = [
                 ipa_processors[lang].process_str(word)
                 for (lang, _), word in zip(items, words)

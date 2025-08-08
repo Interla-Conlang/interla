@@ -9,7 +9,7 @@ from multiple languages.
 
 import os
 import pickle
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
@@ -24,7 +24,7 @@ _all_y2normWord: Dict[str, Dict[int, str]] = {}
 _LANG_WEIGHTS: Dict[str, float] = {}
 
 
-def compute_token(args: Tuple[int, Dict[str, int]]) -> Tuple[str, int]:
+def compute_token(args: Tuple[int, Dict[str, List[int]]]) -> Tuple[str, int]:
     """
     Compute the Interla orthographic token for a given anonymous token.
 
@@ -46,17 +46,20 @@ def compute_token(args: Tuple[int, Dict[str, int]]) -> Tuple[str, int]:
     # Get the words and their corresponding weights
     words = []
     weights = []
-
-    for lang, w_id in assoc_words.items():
-        word = _all_y2normWord[lang].get(w_id, "")
-        if word:  # Only include non-empty words
-            words.append(word)
-            weights.append(_LANG_WEIGHTS[lang])
+    for lang, w_ids in assoc_words.items():
+        lang_weight = _LANG_WEIGHTS[lang]
+        # Distribute the language weight if multiple words are present for a given language
+        lang_weight_per_word = lang_weight / len(w_ids) if w_ids else 0.0
+        for w_id in w_ids:
+            word = _all_y2normWord[lang].get(w_id, "")
+            if word:  # Only include non-empty words
+                words.append(word)
+                weights.append(lang_weight_per_word)
 
     # Skip barycenter computation
     if len(words) < 2:
         return "", int_anon_token
-    
+
     # Compute barycenter based on number of words
     if len(words) == 0:
         int_ipa_token = ""
@@ -74,7 +77,7 @@ def compute_token(args: Tuple[int, Dict[str, int]]) -> Tuple[str, int]:
 
 
 def load_or_compute_vocabulary(
-    int_anon_tokens_coocurrences: Dict[int, Dict[str, int]],
+    int_anon_tokens_coocurrences: Dict[int, Dict[str, List[int]]],
     all_y2normWord: Dict[str, Dict[int, str]],
     LANG_WEIGHTS: Dict[str, float],
 ) -> Dict[str, int]:

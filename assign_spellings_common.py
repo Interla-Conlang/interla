@@ -261,7 +261,7 @@ def get_data_from_opensub(
 
     logger.debug("Initializing data structures")
     int_anon_tokens_coocurrences: Dict[
-        int, Dict[str, int]
+        int, Dict[str, int]  # TODO: convert to list[int]
     ] = {}  # 156: {"fi": [159, 8], "sv": [2, 8]}
     all_y2normWord: Dict[str, Dict[int, str]] = {}  # To collect all y2word mappings
     all_y2word: Dict[str, Dict[int, str]] = {}  # To collect all y2word mappings
@@ -394,7 +394,7 @@ def process_words_batch(
 
 
 def get_data_from_wiktionary() -> Tuple[
-    Dict[int, Dict[str, int]],
+    Dict[int, Dict[str, List[int]]],
     Dict[str, Dict[int, str]],
     Dict[str, Dict[int, str]],
     Dict[str, float],
@@ -439,7 +439,7 @@ def get_data_from_wiktionary() -> Tuple[
 
     logger.debug("Initializing data structures")
     # Use defaultdict for better performance
-    int_anon_tokens_coocurrences: Dict[int, Dict[str, int]] = {}
+    int_anon_tokens_coocurrences: Dict[int, Dict[str, List[int]]] = {}
     all_y2normWord: Dict[str, Dict[int, str]] = defaultdict(dict)
     all_y2word: Dict[str, Dict[int, str]] = defaultdict(dict)
     all_word2x: Dict[str, int] = {}
@@ -482,6 +482,8 @@ def get_data_from_wiktionary() -> Tuple[
                 # IN THE FUTURE, we should not rely on the existence of an english token specifically
 
                 if lang_code != "en":
+                    if lang_code == "fr" and word in {"être", "manchot"}:
+                        pass
                     # Check that code exists in translations and "invert" the record
                     if "translations" not in data:
                         continue
@@ -549,16 +551,28 @@ def get_data_from_wiktionary() -> Tuple[
                             all_word2y[trans_word] = len(all_word2y)
                         trans_y_id = all_word2y[trans_word]
 
-                        words_by_lang[trans_lang].append((trans_y_id, trans_word, ipa))
-                        all_y2word[trans_lang][trans_y_id] = trans_word
+                        # Gain a lot of time in IPA processing by removing duplicates
+                        if trans_y_id not in all_y2word[trans_lang]:
+                            words_by_lang[trans_lang].append(
+                                (trans_y_id, trans_word, ipa)
+                            )
+                            all_y2word[trans_lang][trans_y_id] = trans_word
+
                         cooccurrences[trans_lang] = trans_y_id
 
                 # Store cooccurrences
                 if x_id in int_anon_tokens_coocurrences:
-                    # TODO: for now we never override. BUT what if multiple values for same language? make a list?
-                    int_anon_tokens_coocurrences[x_id].update(cooccurrences)
+                    # Append to the existing lists for each language
+                    for lang, y_id in cooccurrences.items():
+                        if lang in int_anon_tokens_coocurrences[x_id]:
+                            int_anon_tokens_coocurrences[x_id][lang].append(y_id)
+                        else:
+                            int_anon_tokens_coocurrences[x_id][lang] = [y_id]
                 else:
-                    int_anon_tokens_coocurrences[x_id] = cooccurrences
+                    # Wrap every int in a list
+                    int_anon_tokens_coocurrences[x_id] = {
+                        lang: [y_id] for lang, y_id in cooccurrences.items()
+                    }
 
     # Second pass: process words in batches using multiprocessing
     logger.debug("Second pass: processing IPA in batches")
