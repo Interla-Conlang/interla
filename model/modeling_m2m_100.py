@@ -21,7 +21,6 @@ from typing import Optional, Union
 import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss
-
 from transformers.activations import ACT2FN
 from transformers.cache_utils import Cache, EncoderDecoderCache
 from transformers.generation.utils import GenerationMixin
@@ -46,6 +45,7 @@ from transformers.utils.import_utils import (
     is_torch_flex_attn_available,
     is_torchdynamo_compiling,
 )
+from vector_quantize_pytorch import VectorQuantize
 
 if is_torch_flex_attn_available():
     from torch.nn.attention.flex_attention import BlockMask
@@ -1014,6 +1014,14 @@ class VQ_M2M100Model(M2M100PreTrainedModel):
         self.encoder = M2M100Encoder(config, self.shared)
         self.decoder = M2M100Decoder(config, self.shared)
 
+        # Vector quantization layer for encoder outputs
+        self.vq = VectorQuantize(
+            dim=config.d_model,  # model dimension
+            codebook_size=2**14,  # codebook size
+            decay=0.8,  # exponential moving average decay
+            commitment_weight=1.0,  # commitment loss weight
+        )
+
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -1110,6 +1118,44 @@ class VQ_M2M100Model(M2M100PreTrainedModel):
                 hidden_states=encoder_outputs[1] if len(encoder_outputs) > 1 else None,
                 attentions=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
             )
+
+        # TEST : Add a bit of noise on the encoder outputs
+        # encoder_outputs = BaseModelOutput(
+        #     last_hidden_state=encoder_outputs[0] + torch.randn_like(encoder_outputs[0]) * 0.2,
+        #     hidden_states=encoder_outputs[1] if len(encoder_outputs) > 1 else None,
+        #     attentions=encoder_outputs[2] if len(encoder_outputs) > 2 else None,
+        # )
+
+        # Vector quantize the encoder outputs
+        if return_dict and isinstance(encoder_outputs, BaseModelOutput):
+            # Extract the last hidden state for quantization
+            hidden_state = encoder_outputs.last_hidden_state
+            quantized_hidden_states, indices, commit_loss = self.vq(hidden_state)
+
+            # Store commitment loss for use in total loss
+            self.commitment_loss = commit_loss
+
+            # Update encoder outputs with quantized states
+            encoder_outputs = BaseModelOutput(
+                last_hidden_state=quantized_hidden_states,
+                hidden_states=encoder_outputs.hidden_states,
+                attentions=encoder_outputs.attentions,
+            )
+        else:
+            # Handle tuple format
+            hidden_state = encoder_outputs[0]
+            quantized_hidden_states, indices, commit_loss = self.vq(hidden_state)
+
+            # Store commitment loss for use in total loss
+            self.commitment_loss = commit_loss
+
+            encoder_outputs = (
+                quantized_hidden_states,
+                encoder_outputs[1] if len(encoder_outputs) > 1 else None,
+                encoder_outputs[2] if len(encoder_outputs) > 2 else None,
+            )
+        
+        # Dimensions explained: hidden_state: (nb_beams, seq_length, d_model)
 
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
@@ -1274,6 +1320,12 @@ class M2M100ForConditionalGeneration(M2M100PreTrainedModel, GenerationMixin):
                 lm_logits.view(-1, self.config.vocab_size), labels.view(-1)
             )
 
+            # Add commitment loss from vector quantization
+            if hasattr(self.model, "commitment_loss"):
+                # Scale the commitment loss appropriately
+                commitment_loss = self.model.commitment_loss.mean()
+                masked_lm_loss = masked_lm_loss + commitment_loss
+
         if not return_dict:
             output = (lm_logits,) + outputs[1:]
             return (
@@ -1293,4 +1345,4 @@ class M2M100ForConditionalGeneration(M2M100PreTrainedModel, GenerationMixin):
         )
 
 
-__all__ = ["M2M100ForConditionalGeneration", "M2M100Model", "M2M100PreTrainedModel"]
+__all__ = ["M2M100ForConditionalGeneration", "VQ_M2M100Model", "M2M100PreTrainedModel"]

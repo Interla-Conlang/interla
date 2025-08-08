@@ -32,3 +32,5 @@ generated_tokens = model.generate(**encoded_zh)  # type: ignore
 result_zh = tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
 print(f"Chinese to English: {result_zh}")
 # => "Life is like a box of chocolate."
+
+print()
