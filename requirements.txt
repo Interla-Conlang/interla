@@ -5,3 +5,5 @@ levenshtein
 epitran
 numba
 orjson
+transformers
+sentencepiece
