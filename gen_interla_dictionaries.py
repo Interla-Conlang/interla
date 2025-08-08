@@ -163,8 +163,8 @@ def gen_single_dictionary(language_code: str) -> None:
         logger.error(f"Interla vocabulary file not found at {interla_vocab_path}")
         return
 
-    with open(interla_vocab_path, "rb") as f:
-        vocab: Dict[str, int] = pickle.load(f)
+    with open(interla_vocab_path, "rb") as f:  # TODO: use load_or_compute_vocabulary
+        vocab: Dict[str, List[int]] = pickle.load(f)
 
     if language_code not in all_y2word:
         logger.error(f"Language {language_code} not found in available languages")
@@ -178,24 +178,25 @@ def gen_single_dictionary(language_code: str) -> None:
     y2word = all_y2word[language_code]
 
     freq_dict = FREQ_DICT[language_code] if language_code in FREQ_DICT else None
-    for int_orth_token, int_anon_token in vocab.items():
-        assoc_words = int_anon_tokens_coocurrences.get(int_anon_token, {})
-        if language_code in assoc_words:
-            y_ids = assoc_words[language_code]
-            for y_id in y_ids:
-                word = y2word[y_id]
+    for int_orth_token, int_anon_tokens in vocab.items():
+        for int_anon_token in int_anon_tokens:
+            assoc_words = int_anon_tokens_coocurrences.get(int_anon_token, {})
+            if language_code in assoc_words:
+                y_ids = assoc_words[language_code]
+                for y_id in y_ids:
+                    word = y2word[y_id]
 
-                if freq_dict is None or word in freq_dict:
-                    # Store both directions, handling multiple translations
-                    if word not in lang_to_interla:
-                        lang_to_interla[word] = []
-                    if int_orth_token not in lang_to_interla[word]:
-                        lang_to_interla[word].append(int_orth_token)
+                    if freq_dict is None or word in freq_dict:
+                        # Store both directions, handling multiple translations
+                        if word not in lang_to_interla:
+                            lang_to_interla[word] = []
+                        if int_orth_token not in lang_to_interla[word]:
+                            lang_to_interla[word].append(int_orth_token)
 
-                    if int_orth_token not in interla_to_lang:
-                        interla_to_lang[int_orth_token] = []
-                    if word not in interla_to_lang[int_orth_token]:
-                        interla_to_lang[int_orth_token].append(word)
+                        if int_orth_token not in interla_to_lang:
+                            interla_to_lang[int_orth_token] = []
+                        if word not in interla_to_lang[int_orth_token]:
+                            interla_to_lang[int_orth_token].append(word)
 
     if lang_to_interla:
         logger.info(
@@ -236,7 +237,7 @@ def gen_dictionaries() -> None:
         return
 
     with open(interla_vocab_path, "rb") as f:
-        vocab: Dict[str, int] = pickle.load(f)
+        vocab: Dict[str, List[int]] = pickle.load(f)
 
     # Prepare dictionary data for all languages
     logger.info("Preparing dictionary data for all languages...")
@@ -258,26 +259,27 @@ def gen_dictionaries() -> None:
             continue
         y2word = all_y2word[dict_lang]
         freq_dict = FREQ_DICT[dict_lang] if dict_lang in FREQ_DICT else None
-        for int_orth_token, int_anon_token in vocab.items():
-            assoc_words = int_anon_tokens_cooccurrences.get(int_anon_token, {})
-            if dict_lang in assoc_words:
-                y_ids = assoc_words[dict_lang]
-                for y_id in y_ids:
-                    word = y2word[y_id]
+        for int_orth_token, int_anon_tokens in vocab.items():
+            for int_anon_token in int_anon_tokens:
+                assoc_words = int_anon_tokens_cooccurrences.get(int_anon_token, {})
+                if dict_lang in assoc_words:
+                    y_ids = assoc_words[dict_lang]
+                    for y_id in y_ids:
+                        word = y2word[y_id]
 
-                    if (
-                        freq_dict is None or word.lower() in freq_dict
-                    ):  # restrict to frequent words
-                        # Store both directions, handling multiple translations
-                        if word not in lang_to_interla:
-                            lang_to_interla[word] = []
-                        if int_orth_token not in lang_to_interla[word]:
-                            lang_to_interla[word].append(int_orth_token)
+                        if (
+                            freq_dict is None or word.lower() in freq_dict
+                        ):  # restrict to frequent words
+                            # Store both directions, handling multiple translations
+                            if word not in lang_to_interla:
+                                lang_to_interla[word] = []
+                            if int_orth_token not in lang_to_interla[word]:
+                                lang_to_interla[word].append(int_orth_token)
 
-                        if int_orth_token not in interla_to_lang:
-                            interla_to_lang[int_orth_token] = []
-                        if word not in interla_to_lang[int_orth_token]:
-                            interla_to_lang[int_orth_token].append(word)
+                            if int_orth_token not in interla_to_lang:
+                                interla_to_lang[int_orth_token] = []
+                            if word not in interla_to_lang[int_orth_token]:
+                                interla_to_lang[int_orth_token].append(word)
 
         # Add to arguments list for parallel processing
         dictionary_args.append((lang_to_interla, interla_to_lang, dict_lang))

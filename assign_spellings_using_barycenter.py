@@ -9,7 +9,7 @@ from multiple languages.
 
 import os
 import pickle
-from typing import Dict, Set, Tuple
+from typing import Dict, List, Set, Tuple
 
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
@@ -84,7 +84,7 @@ def load_or_compute_vocabulary(
     int_anon_tokens_coocurrences: Dict[int, Dict[str, Set[int]]],
     all_y2normWord: Dict[str, Dict[int, str]],
     LANG_WEIGHTS: Dict[str, float],
-) -> Dict[str, int]:
+) -> Dict[str, List[int]]:
     """
     Load existing vocabulary or compute it using barycenter method.
 
@@ -100,7 +100,7 @@ def load_or_compute_vocabulary(
         logger.debug(f"Loading existing vocabulary from {interla_vocab_path}")
         try:
             with open(interla_vocab_path, "rb") as f:
-                vocab: Dict[str, int] = pickle.load(f)
+                vocab: Dict[str, List[int]] = pickle.load(f)
             logger.debug(f"Loaded vocabulary with {len(vocab)} entries")
             return vocab
         except Exception as e:
@@ -109,7 +109,7 @@ def load_or_compute_vocabulary(
 
     logger.debug("Computing new vocabulary using barycenter method")
 
-    vocab: Dict[str, int] = {}
+    vocab: Dict[str, List[int]] = {}
 
     try:
         logger.debug(f"Processing {len(int_anon_tokens_coocurrences)} anonymous tokens")
@@ -126,7 +126,7 @@ def load_or_compute_vocabulary(
         chunksize = max(1, len(items_list) // (max_workers * 50))
 
         # Process all items and handle results incrementally to avoid memory buildup
-        vocab: Dict[str, int] = {}
+        vocab: Dict[str, List[int]] = {}
         empty_tokens = 0
 
         # Process results as they come in instead of storing them all
@@ -146,7 +146,10 @@ def load_or_compute_vocabulary(
             )
         ):
             if int_orth_token:  # Only include non-empty tokens
-                vocab[int_orth_token] = int_anon_token
+                if int_orth_token not in vocab:
+                    vocab[int_orth_token] = [int_anon_token]
+                else:
+                    vocab[int_orth_token].append(int_anon_token)
             else:
                 empty_tokens += 1
 

@@ -2,30 +2,32 @@ import argparse
 import logging
 import os
 import pickle
-from typing import Dict
+from typing import Dict, List
 
 from assign_spellings_common import get_data_from_wiktionary
 
 
-def load_vocab(vocab_path: str) -> Dict[str, int]:
+def load_vocab(vocab_path: str) -> Dict[str, List[int]]:
     with open(vocab_path, "rb") as f:
         return pickle.load(f)
 
 
 def build_lang_to_interla(
-    target_lang, vocab, int_anon_tokens_cooccurrences, all_y2word
+    target_lang, vocab: Dict[str, List[int]], int_anon_tokens_cooccurrences, all_y2word
 ):
     lang_to_interla = {}
     if target_lang not in all_y2word:
         logging.warning(f"Language {target_lang} not found in available languages")
         return lang_to_interla
     y2word = all_y2word[target_lang]
-    for int_orth_token, int_anon_token in vocab.items():
-        assoc_words = int_anon_tokens_cooccurrences.get(int_anon_token, {})
-        if target_lang in assoc_words:
-            y_id = assoc_words[target_lang]
-            word = y2word[y_id]
-            lang_to_interla[word] = int_orth_token
+    for int_orth_token, int_anon_tokens in vocab.items():
+        for int_anon_token in int_anon_tokens:
+            assoc_words = int_anon_tokens_cooccurrences.get(int_anon_token, {})
+            if target_lang in assoc_words:
+                y_ids = assoc_words[target_lang]
+                for y_id in y_ids:
+                    word = y2word[y_id]
+                    lang_to_interla[word] = int_orth_token  # Always override
     return lang_to_interla
 
 
