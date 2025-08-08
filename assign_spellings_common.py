@@ -451,7 +451,8 @@ def get_data_from_wiktionary() -> Tuple[
 
     jsonl_paths = [
         "data/wiktionary/fr-extract.light.jsonl.gz",
-        "data/wiktionary/kaikki.org-dictionary-all-words.light.jsonl.gz",
+        "data/wiktionary/zh-extract.light.jsonl.gz",
+        "data/wiktionary/raw-wiktextract-data.light.jsonl.gz",
     ]
     for jsonl_path in jsonl_paths:
         with gzip.open(jsonl_path, "rt", encoding="utf-8") as f:
