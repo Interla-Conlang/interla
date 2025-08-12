@@ -511,10 +511,14 @@ def get_data_from_wiktionary() -> Tuple[
                     lang_code = "en"
                     del data["translations"][idx]
 
+
+                pos = data.get("pos", "")
+                word_with_pos = f"{word}_{pos}"
+
                 # Get the word ID for interla
-                if word not in all_word2x:
-                    all_word2x[word] = len(all_word2x)
-                x_id = all_word2x[word]
+                if word_with_pos not in all_word2x:
+                    all_word2x[word_with_pos] = len(all_word2x)
+                x_id = all_word2x[word_with_pos]
 
                 # Get IPA if available
                 ipa_list = data.get("ipa", [])
