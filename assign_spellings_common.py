@@ -465,118 +465,144 @@ def get_data_from_wiktionary() -> Tuple[
                 except Exception:
                     continue
 
-                word = data.get("word", "")
-                if not word:
+                original_word = data.get("word", "")
+                if not original_word:
                     continue
 
                 lang_code = data.get("lang_code")
                 if not lang_code:
                     continue
 
-                # 'word' = 'accueil'
-                # 'lang_code' = 'fr'
-                # 'ipa' = ['a.kœj']
-                # translations': [{'lang_code': 'de', 'word': 'Aufnahme'}
+                # Check that code exists in translations
+                if "translations" not in data:
+                    continue
 
-                # FIXME: for the moment, we need an english token to define an interla token
-                # IN THE FUTURE, we should not rely on the existence of an english token specifically
+                all_senses_in_translations = set(
+                    t.get("sense_index") for t in data.get("translations", [])
+                )
 
-                if lang_code != "en":
-                    if lang_code == "fr" and word in {"être", "manchot"}:
-                        pass
-                    # Check that code exists in translations and "invert" the record
-                    if "translations" not in data:
-                        continue
-                    idx = [
-                        i
-                        for i, t in enumerate(data["translations"])
-                        if t["lang_code"] == "en"
+                for sense_index in all_senses_in_translations:
+                    translations = [
+                        t
+                        for t in data.get("translations", [])
+                        if t.get("sense_index") == sense_index
                     ]
-                    idx = (
-                        idx[0] if idx else None
-                    )  # TODO: what if there are multiple ones (should be multiple records)
-                    if idx is None:
-                        continue
-                    # Else:
-                    # Add current lang as a translation
-                    data["translations"].append(
-                        {
-                            "word": word,
-                            "lang_code": lang_code,
-                            "ipa": data.get("ipa", None),
-                        }
-                    )
-                    # Now, remove "en" from translations and use it as the main word
-                    word = data["translations"][idx].get("word", "")
-                    lang_code = "en"
-                    del data["translations"][idx]
 
+                    # 'word' = 'accueil'
+                    # 'lang_code' = 'fr'
+                    # 'ipa' = ['a.kœj']
+                    # translations': [{'lang_code': 'de', 'word': 'Aufnahme'}
 
-                pos = data.get("pos", "")
-                word_with_pos = f"{word}_{pos}"
+                    # FIXME: for the moment, we need an english token to define an interla token
+                    # IN THE FUTURE, we should not rely on the existence of an english token specifically
 
-                # Get the word ID for interla
-                if word_with_pos not in all_word2x:
-                    all_word2x[word_with_pos] = len(all_word2x)
-                x_id = all_word2x[word_with_pos]
-
-                # Get IPA if available
-                ipa_list = data.get("ipa", [])
-                ipa = ipa_list[0] if ipa_list and ipa_list[0] else None
-
-                # Add English word
-                if word not in all_word2y:
-                    all_word2y[word] = len(all_word2y)
-                y_id = all_word2y[word]
-
-                words_by_lang["en"].append((y_id, word, ipa))
-                all_y2word["en"][y_id] = word
-
-                # Collect translation words
-                cooccurrences = {"en": y_id}
-
-                for trans in data.get("translations", []):
-                    trans_lang = trans.get("lang_code")
-
-                    # TODO: this is a bit too harsh... sometimes we have the IPA so we don't care if epitran does not work, right?
-                    if trans_lang not in ALL_EPITRAN_VALID_LANGUAGES:
-                        continue
-
-                    trans_word = trans.get("word", "")
-                    if not trans_word:
-                        continue
-
-                    ipa = trans.get(
-                        "ipa", None
-                    )  # 99% of translations do not have an IPA
-
-                    if trans_lang not in cooccurrences:
-                        if trans_word not in all_word2y:
-                            all_word2y[trans_word] = len(all_word2y)
-                        trans_y_id = all_word2y[trans_word]
-
-                        # Gain a lot of time in IPA processing by removing duplicates
-                        if trans_y_id not in all_y2word[trans_lang]:
-                            words_by_lang[trans_lang].append(
-                                (trans_y_id, trans_word, ipa)
-                            )
-                            all_y2word[trans_lang][trans_y_id] = trans_word
-
-                        cooccurrences[trans_lang] = trans_y_id
-
-                # Store cooccurrences
-                if x_id in int_anon_tokens_coocurrences:
-                    # Append to the existing lists for each language
-                    for lang, y_id in cooccurrences.items():
-                        if lang in int_anon_tokens_coocurrences[x_id]:
-                            int_anon_tokens_coocurrences[x_id][lang].add(y_id)
+                    if lang_code == "en":
+                        word = original_word
+                    else:
+                        # "Invert" the record
+                        idx = [
+                            i
+                            for i, t in enumerate(translations)
+                            if t["lang_code"] == "en"
+                        ]
+                        idx = (
+                            idx[0] if idx else None
+                        )  # TODO: what if there are multiple ones (should be multiple records)
+                        if idx is not None:
+                            # Now, remove "en" from translations and use it as the main word
+                            word = translations[idx].get("word", "")
+                            del translations[idx]
                         else:
-                            int_anon_tokens_coocurrences[x_id][lang] = {y_id}
-                else:
-                    # Wrap every int in a set
-                    int_anon_tokens_coocurrences[x_id] = {
-                        lang: {y_id} for lang, y_id in cooccurrences.items()
-                    }
+                            # Keep one of the english translation, the first one...
+                            idx = [
+                                i
+                                for i, t in enumerate(data.get("translations", []))
+                                if t["lang_code"] == "en"
+                            ]
+                            idx = idx[0] if idx else None
+                            if idx is None:
+                                continue
+
+                            word = data.get("translations", [])[idx].get("word", "")
+
+                        # Add current lang as a translation
+                        translations.append(
+                            {
+                                "word": original_word,
+                                "lang_code": lang_code,
+                                "ipa": data.get("ipa", None),
+                            }
+                        )
+
+                    pos = data.get("pos", "")
+                    word_w_pos_sense = (
+                        f"{word}_{pos}"
+                        if sense_index is None
+                        else f"{word}_{pos}_{sense_index}"
+                    )
+
+                    # Get the word ID for interla
+                    if word_w_pos_sense not in all_word2x:
+                        all_word2x[word_w_pos_sense] = len(all_word2x)
+                    x_id = all_word2x[word_w_pos_sense]
+
+                    # Get IPA if available
+                    ipa_list = data.get("ipa", [])
+                    ipa = ipa_list[0] if ipa_list and ipa_list[0] else None
+
+                    # Add English word
+                    if word not in all_word2y:
+                        all_word2y[word] = len(all_word2y)
+                    y_id = all_word2y[word]
+
+                    words_by_lang["en"].append((y_id, word, ipa))
+                    all_y2word["en"][y_id] = word
+
+                    # Collect translation words
+                    cooccurrences = {"en": y_id}
+
+                    for trans in translations:
+                        trans_lang = trans.get("lang_code")
+
+                        # TODO: this is a bit too harsh... sometimes we have the IPA so we don't care if epitran does not work, right?
+                        if trans_lang not in ALL_EPITRAN_VALID_LANGUAGES:
+                            continue
+
+                        trans_word = trans.get("word", "")
+                        if not trans_word:
+                            continue
+
+                        ipa = trans.get(
+                            "ipa", None
+                        )  # 99% of translations do not have an IPA
+
+                        if trans_lang not in cooccurrences:
+                            if trans_word not in all_word2y:
+                                all_word2y[trans_word] = len(all_word2y)
+                            trans_y_id = all_word2y[trans_word]
+
+                            # Gain a lot of time in IPA processing by removing duplicates
+                            if trans_y_id not in all_y2word[trans_lang]:
+                                words_by_lang[trans_lang].append(
+                                    (trans_y_id, trans_word, ipa)
+                                )
+                                all_y2word[trans_lang][trans_y_id] = trans_word
+
+                            cooccurrences[trans_lang] = trans_y_id
+
+                    # Store cooccurrences
+                    if x_id in int_anon_tokens_coocurrences:
+                        # Append to the existing lists for each language
+                        for lang, y_id in cooccurrences.items():
+                            if lang in int_anon_tokens_coocurrences[x_id]:
+                                int_anon_tokens_coocurrences[x_id][lang].add(y_id)
+                            else:
+                                int_anon_tokens_coocurrences[x_id][lang] = {y_id}
+                    else:
+                        # Wrap every int in a set
+                        int_anon_tokens_coocurrences[x_id] = {
+                            lang: {y_id} for lang, y_id in cooccurrences.items()
+                        }
 
     # Second pass: process words in batches using multiprocessing
     logger.debug("Second pass: processing IPA in batches")
